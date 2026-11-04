@@ -3,9 +3,8 @@
 Environment evaluasi 13 November 2026. Root module ini menghubungkan
 modul-modul di `../../modules/` menjadi satu stack yang bisa di-apply.
 
-Status saat scaffold: belum ada modul yang terhubung di `main`.
-Modul pertama (`network`) dikerjakan di feature branch
-`feature/terraform-foundation`, lalu menyusul `data`, `compute`,
+Status di branch ini: modul `network` sudah terhubung (lihat `main.tf`).
+Menyusul setelah branch ini di-review dan di-merge: `data`, `compute`,
 `messaging`, `email`, `storage`, `secrets`, `dns`, `observability`
 (dalam urutan dependensi).
 
