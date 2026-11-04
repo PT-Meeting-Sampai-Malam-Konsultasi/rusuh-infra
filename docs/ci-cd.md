@@ -74,6 +74,10 @@ Each switch is a GitHub Actions variable. Values are exactly `on` or `off`; anyt
 
 A switched-off stage is skipped, never failed.
 
+- `CD_*` switches must be org or repo variables, **never environment variables**: they are read before the deploy jobs enter the environment, so an environment-level `CD_ECS` is ignored.
+- Turn `CD_ECS` on **per repo** (repo variable), not at the org, so each service starts deploying only when its AWS side exists.
+- The per-repo override is proven on `rusuh-queue` (set `CI_VULN=off`, see it skipped, delete it); do this before relying on `@v1` in a new org.
+
 ## CD variables
 
 Set on the GitHub Environment named by `environment` (e.g. `production`) in each backend repo, or at the org when shared.
@@ -90,11 +94,22 @@ Set on the GitHub Environment named by `environment` (e.g. `production`) in each
 
 With `CD_ECS=on`, a missing variable fails the run before anything touches AWS. The ECR repository is named after `service`. No AWS keys are stored anywhere: the role is assumed through GitHub OIDC.
 
+## Production protection (required before `CD_ECS=on`)
+
+The tag check in `backend-cd.yml` stops honest mistakes, not a determined collaborator: a PR can edit its own caller file. AWS access is guarded by the platform:
+
+1. In each backend repo, the `production` environment's deployment policy allows only tags matching `v*`.
+2. A tag ruleset limits who can create `v*` tags.
+3. The IAM role's OIDC trust policy is pinned to `token.actions.githubusercontent.com:sub = repo:PT-Meeting-Sampai-Malam-Konsultasi/<repo>:environment:production`, and `job_workflow_ref` to `PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@refs/tags/v1`.
+
+Fork PRs get no `id-token` and a read-only token, so they cannot push images or reach AWS.
+
 ## Contract with Terraform
 
 - Terraform owns the ECR repositories, cluster, services, IAM (including the OIDC role) and the first task definition of each service.
 - CD owns the image in later task definition revisions: it reads the latest revision of `ECS_TASK_FAMILY`, swaps the image of `ECS_CONTAINER`, registers it and updates the service.
 - Terraform sets `lifecycle { ignore_changes = [task_definition] }` on each `aws_ecs_service`, so an apply does not roll an image back.
+- Terraform creates the OIDC role with the trust conditions in "Production protection".
 
 ## Release checklist
 

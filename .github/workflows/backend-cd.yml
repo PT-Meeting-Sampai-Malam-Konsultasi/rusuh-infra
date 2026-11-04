@@ -39,7 +39,9 @@ jobs:
         run: |
           set -euo pipefail
           bad=0
-          if [[ "$GITHUB_REF_TYPE" != tag && -z "${OVERRIDES:-}" ]]; then
+          self_test=false
+          [[ -n "${OVERRIDES:-}" && "${GITHUB_REPOSITORY#*/}" == rusuh-infra ]] && self_test=true
+          if [[ "$GITHUB_REF_TYPE" != tag && "$self_test" != true ]]; then
             echo "::error::CD runs only for a release tag, got $GITHUB_REF_TYPE $GITHUB_REF_NAME"
             bad=1
           fi

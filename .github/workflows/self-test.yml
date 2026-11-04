@@ -58,6 +58,7 @@ jobs:
     uses: ./.github/workflows/backend-cd.yml
     with:
       service: rusuh-ci-fixture-go
+      switch-overrides: '{"CD_ECS":"off","CD_K3S":"off"}'
 
   cd-missing-config:
     if: inputs.negative
