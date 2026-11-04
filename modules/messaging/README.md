@@ -1,24 +1,26 @@
-# Modul: messaging
+# Module: messaging
 
-SQS + DLQ untuk pekerjaan async (notifikasi dkk., Q27).
+SQS + DLQ for async jobs (notifications, etc., Q27).
 
-Resource per queue:
+Resources per queue:
 
-- `aws_sqs_queue` utama + `aws_sqs_queue` DLQ (`<nama>-dlq`).
-- `redrive_policy` di queue utama (maxReceiveCount, default 5).
-- `redrive_allow_policy` di DLQ (`byQueue`, hanya dari queue utama
-  yang bersangkutan).
+- Main `aws_sqs_queue` + DLQ `aws_sqs_queue` (`<name>-dlq`).
+- `redrive_policy` on the main queue (maxReceiveCount, default 5).
+- `redrive_allow_policy` on the DLQ (`byQueue`, only from the
+  corresponding main queue).
 
-Ketentuan:
+Rules:
 
-- `visibility_timeout_seconds` (default 300 dtk) harus lebih besar dari
-  waktu pemrosesan terlama yang diharapkan — bila tidak, pesan yang
-  sedang diproses bisa diproses dua kali.
-- Pesan gagal tidak boleh hilang diam-diam: setelah maxReceiveCount
-  percobaan, pesan pindah ke DLQ; kedalaman DLQ di-alarm oleh modul
-  observability (DLQ harus tetap kosong di kondisi normal).
-- Default hanya membuat queue `notification`. Tambah queue lain lewat
-  variabel `queues` bila ada pekerjaan async baru.
-- Keputusan relay-target job notifikasi (SQS vs direct-read outbox
-  ADR-0013) masih terbuka di diskusi tim; modul ini menyiapkan
-  SQS-nya, keputusan relay mengikuti hasil diskusi.
+- `visibility_timeout_seconds` (default 300 s) must exceed the longest
+  expected processing time — otherwise a message being processed can
+  be processed twice.
+- Failed messages must not disappear silently: after maxReceiveCount
+  attempts, a message moves to the DLQ; DLQ depth is alarmed by the
+  observability module (the DLQ must stay empty under normal
+  conditions).
+- By default only the `notification` queue is created. Add other
+  queues via the `queues` variable when new async jobs appear.
+- The notification-job relay-target decision (SQS vs direct-read
+  outbox, ADR-0013) is still open in team discussion; this module
+  provides the SQS side, and the relay decision follows the
+  discussion outcome.

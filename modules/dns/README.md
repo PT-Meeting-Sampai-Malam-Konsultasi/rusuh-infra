@@ -1,23 +1,25 @@
-# Modul: dns
+# Module: dns
 
-ACM + DNS records untuk `api.rusuh-tiket.web.id`.
+ACM + DNS records for `api.rusuh-tiket.web.id`.
 
-Resource:
+Resources:
 
-- `aws_acm_certificate` (validasi DNS) untuk subdomain api, di region
-  yang sama dengan ALB (arah ALB-direct).
+- `aws_acm_certificate` (DNS validation) for the api subdomain, in
+  the same region as the ALB (ALB-direct direction).
 
-Langkah manual (tidak bisa via Terraform tanpa token Cloudflare,
-ditulis eksplisit):
+Manual steps (not possible via Terraform without a Cloudflare token,
+written explicitly):
 
-- Buat DNS record dari output `domain_validation_options` di
-  Cloudflare — sampai record ini ada, sertifikat berstatus
-  PENDING_VALIDATION dan tidak bisa dipasang ke listener ALB.
-- Setelah tervalidasi, isi `certificate_arn` modul compute (via
-  environment demo) lalu apply lagi — listener HTTPS 443 aktif.
-- Sampai saat itu demo berjalan di HTTP saja (listener 80).
-- Bila tim suatu hari memilih CloudFront di depan API, sertifikat
-  harus pindah ke `us-east-1` (requirement CloudFront) — modul ini
-  perlu diubah saat itu.
-- SSL saat ini belum ada sama sekali — modul ini + langkah validasi
-  di atas yang menutup gap itu.
+- Create the DNS records from the `domain_validation_options`
+  output in Cloudflare — until those records exist, the certificate
+  stays PENDING_VALIDATION and cannot be attached to the ALB
+  listener.
+- Once validated, fill the compute module's `certificate_arn` (via
+  the demo environment) and apply again — the HTTPS 443 listener
+  becomes active.
+- Until then the demo runs on HTTP only (listener 80).
+- If the team ever chooses CloudFront in front of the API, the
+  certificate must move to `us-east-1` (CloudFront requirement) —
+  this module needs changing at that point.
+- SSL does not exist at all right now — this module + the validation
+  steps above close that gap.

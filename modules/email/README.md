@@ -1,18 +1,19 @@
-# Modul: email
+# Module: email
 
-SES untuk semua email keluar (e-tiket, expired, notifikasi).
+SES for all outbound email (e-tickets, expiry, notifications).
 
-Resource:
+Resources:
 
-- `aws_sesv2_email_identity` untuk domain pengirim + DKIM 2048-bit.
+- `aws_sesv2_email_identity` for the sending domain + 2048-bit DKIM.
 
-Langkah manual (tidak bisa via Terraform, ditulis eksplisit):
+Manual steps (not possible via Terraform, written explicitly):
 
-- Buat 3 CNAME record dari output `dkim_tokens` di Cloudflare —
-  sampai record ini ada, identitas SES berstatus unverified dan email
-  tidak terkirim.
-- Production access SES adalah permintaan kuota AWS (bukan resource
-  Terraform) — saat ini belum ada; SES sandbox membatasi penerima ke
-  alamat terverifikasi saja. Urus sebelum evaluasi.
-- Email bawaan Midtrans dipertimbangkan nonaktif supaya hanya email
-  SES yang terkirim (Point 6).
+- Create the 3 CNAME records from the `dkim_tokens` output in
+  Cloudflare — until those records exist, the SES identity stays
+  unverified and no email is sent.
+- SES production access is an AWS quota request (not a Terraform
+  resource) — currently not in place; SES sandbox restricts
+  recipients to verified addresses only. Arrange before the
+  evaluation.
+- Built-in Midtrans emails are being considered for disabling so
+  only SES emails are sent (Point 6).

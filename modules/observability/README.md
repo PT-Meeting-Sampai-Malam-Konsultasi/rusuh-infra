@@ -1,26 +1,26 @@
-# Modul: observability
+# Module: observability
 
-CloudWatch alarm + dashboard untuk evaluasi (satu layar untuk
-memantau demo).
+CloudWatch alarms + dashboard for the evaluation (one screen to
+watch the demo).
 
-Resource:
+Resources:
 
-- Alarm ALB 5xx (threshold default 10 per 5 menit).
-- Alarm kedalaman DLQ per queue (threshold > 0 — DLQ harus tetap
-  kosong di kondisi normal).
-- Dashboard overview: request + 5xx ALB, CPU/memori ECS per service,
-  kedalaman DLQ (widget DLQ hanya muncul bila ada DLQ yang diinput).
+- ALB 5xx alarm (default threshold 10 per 5 minutes).
+- DLQ depth alarm per queue (threshold > 0 — the DLQ must stay
+  empty under normal conditions).
+- Overview dashboard: ALB requests + 5xx, ECS CPU/memory per service,
+  DLQ depth (the DLQ widget only appears when DLQs are provided).
 
-Catatan:
+Notes:
 
-- Alarm di sini belum punya aksi (tanpa SNS/email): statusnya terlihat
-  di console CloudWatch. Hubungkan ke SNS/email saat tim siap —
-  jangan sampai alarm berbunyi tanpa ada yang mendengar saat evaluasi.
-- Log group ECS sengaja tinggal di modul compute (terikat task
-  definition), bukan di sini.
-- Trace: X-Ray (Q40) bersifat SDK-side; permission
-  `xray:PutTraceSegments` sudah ada di task role modul compute. OTel
-  ditunda.
-- Aturan log tetap: JSON terstruktur + korelasi `booking_id`/
-  `request_id` + NIK masked + tanpa token/OTP/secret (30 Okt); audit
-  trail DB dibedakan dari operational log CloudWatch.
+- Alarms here have no actions yet (no SNS/email): their status is
+  visible in the CloudWatch console. Wire them to SNS/email when the
+  team is ready — an alarm must not go off unheard during the
+  evaluation.
+- ECS log groups intentionally live in the compute module (tied to
+  the task definitions), not here.
+- Tracing: X-Ray (Q40) is SDK-side; the `xray:PutTraceSegments`
+  permission is already in the compute task role. OTel deferred.
+- Logging rules stand: structured JSON + `booking_id`/`request_id`
+  correlation + masked NIK + no tokens/OTPs/secrets (30 Oct); the DB
+  audit trail is separate from CloudWatch operational logs.

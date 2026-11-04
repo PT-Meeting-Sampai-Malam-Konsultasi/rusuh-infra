@@ -1,38 +1,39 @@
-# Modul: compute
+# Module: compute
 
-ECS cluster (Fargate) + ALB untuk service-core (Node.js) dan
+ECS cluster (Fargate) + ALB for service-core (Node.js) and
 service-queue (Go).
 
-Resource:
+Resources:
 
-- `aws_ecs_cluster` (Container Insights on untuk evaluasi).
-- `aws_lb` (public, ALB-direct tanpa CloudFront — arah tim 3 Nov),
-  target groups `core` + `queue`, listener HTTP (selalu) + HTTPS
-  (hanya bila `certificate_arn` diisi, dari modul `dns` setelah
-  sertifikat tervalidasi).
-- Routing: default → core; path `/api/queue/*` → queue (skema modul
-  Q41; pola bisa diubah via `queue_path_patterns`).
-- Security groups: ALB (80/443 publik) → ECS (hanya dari ALB, pada
-  port masing-masing service).
-- Task definitions + services Fargate, log groups CloudWatch
-  (`/ecs/rusuh-demo-core`, `/ecs/rusuh-demo-queue`). Log group sengaja
-  tinggal di modul ini (terikat task definition), bukan di modul
-  observability — modul observability hanya berisi alarm + dashboard.
-- IAM: execution role (managed policy) + task role (logs, X-Ray, dan
-  statement dinamis SQS/S3/SES/Secrets yang hanya dibuat bila inputnya
-  diisi).
+- `aws_ecs_cluster` (Container Insights on for the evaluation).
+- `aws_lb` (public, ALB-direct without CloudFront — team direction of
+  3 Nov), `core` + `queue` target groups, HTTP listener (always) +
+  HTTPS listener (only when `certificate_arn` is set, from the `dns`
+  module after the certificate is validated).
+- Routing: default → core; path `/api/queue/*` → queue (Q41 module
+  scheme; pattern changeable via `queue_path_patterns`).
+- Security groups: ALB (public 80/443) → ECS (only from ALB, on each
+  service's port).
+- Fargate task definitions + services, CloudWatch log groups
+  (`/ecs/rusuh-demo-core`, `/ecs/rusuh-demo-queue`). Log groups
+  intentionally live in this module (tied to the task definitions),
+  not in the observability module — observability holds only alarms
+  + dashboard.
+- IAM: execution role (managed policy) + task role (logs, X-Ray, and
+  dynamic SQS/S3/SES/Secrets statements created only when their
+  inputs are set).
 
-Asumsi yang HARUS dikonfirmasi ke pemilik service sebelum apply
-(ditulis di sini supaya tidak diam-diam jadi keputusan):
+Assumptions that MUST be confirmed with service owners before apply
+(written here so they do not silently become decisions):
 
-- `core_image`, `queue_image`, `core_port`, `queue_port`: tanpa default,
-  wajib diisi dari CI/kontrak service masing-masing.
-- `health_check_path` default `/`: asumsi; ganti dengan endpoint health
-  asli bila berbeda (bila salah, target jadi unhealthy).
-- Nama env var standar (`DB_HOST`, `DB_PORT`, `DB_NAME`, `VALKEY_HOST`,
-  `VALKEY_PORT`, `SQS_NOTIFICATION_URL`, `S3_BUCKET`, `SES_DOMAIN`):
-  asumsi; pemilik service bisa menambah/menimpa lewat
-  `*_extra_environment` tanpa mengubah modul.
-- Task berjalan di public subnet dengan public IP (`assign_public_ip
-  = true`) karena NAT nonaktif (lihat modul network). Hardening
-  production: private subnet + NAT + `assign_public_ip = false`.
+- `core_image`, `queue_image`, `core_port`, `queue_port`: no defaults,
+  must come from each service's CI/contract.
+- `health_check_path` default `/`: assumption; replace with the real
+  health endpoint if different (if wrong, targets become unhealthy).
+- Standard env var names (`DB_HOST`, `DB_PORT`, `DB_NAME`,
+  `VALKEY_HOST`, `VALKEY_PORT`, `SQS_NOTIFICATION_URL`, `S3_BUCKET`,
+  `SES_DOMAIN`): assumptions; service owners can add/override via
+  `*_extra_environment` without changing the module.
+- Tasks run in public subnets with public IPs (`assign_public_ip
+  = true`) because NAT is off (see the network module). Production
+  hardening: private subnets + NAT + `assign_public_ip = false`.
