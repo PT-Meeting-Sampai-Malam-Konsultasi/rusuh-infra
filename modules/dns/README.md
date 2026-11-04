@@ -1,18 +1,23 @@
 # Modul: dns
 
-ACM + DNS records untuk `rusuh-tiket.web.id` dan
-`api.rusuh-tiket.web.id`.
+ACM + DNS records untuk `api.rusuh-tiket.web.id`.
 
-Ketentuan:
+Resource:
 
-- Sertifikat ACM untuk subdomain api (wajib untuk ALB-direct; region =
-  region ALB. Bila suatu hari memakai CloudFront, sertifikat pindah ke
-  `us-east-1`).
-- Record DNS di Cloudflare: apex → Pages (CNAME flattening, tim FE via
-  Wrangler); api CNAME → DNS ALB, DNS-only (grey cloud) selama tanpa
-  CloudFront.
-- Keputusan CloudFront vs ALB-direct masih terbuka di tim; modul ini
-  menunggu keputusan itu sebelum record final ditulis.
-- SSL saat ini belum ada sama sekali — modul ini yang menutup gap itu.
+- `aws_acm_certificate` (validasi DNS) untuk subdomain api, di region
+  yang sama dengan ALB (arah ALB-direct).
 
-Status: belum diimplementasi.
+Langkah manual (tidak bisa via Terraform tanpa token Cloudflare,
+ditulis eksplisit):
+
+- Buat DNS record dari output `domain_validation_options` di
+  Cloudflare — sampai record ini ada, sertifikat berstatus
+  PENDING_VALIDATION dan tidak bisa dipasang ke listener ALB.
+- Setelah tervalidasi, isi `certificate_arn` modul compute (via
+  environment demo) lalu apply lagi — listener HTTPS 443 aktif.
+- Sampai saat itu demo berjalan di HTTP saja (listener 80).
+- Bila tim suatu hari memilih CloudFront di depan API, sertifikat
+  harus pindah ke `us-east-1` (requirement CloudFront) — modul ini
+  perlu diubah saat itu.
+- SSL saat ini belum ada sama sekali — modul ini + langkah validasi
+  di atas yang menutup gap itu.
