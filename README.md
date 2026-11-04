@@ -31,16 +31,16 @@ dokumentasi. Terraform `>= 1.5`, AWS provider `~> 5.0`.
 
 | Item | Status |
 | --- | --- |
-| VPC + subnets + routing | Modul `network` (feature `feature/terraform-foundation`) |
-| RDS PostgreSQL | Modul `data` — belum diimplementasi |
-| ElastiCache Valkey | Modul `data` — belum diimplementasi |
-| SQS + DLQ | Modul `messaging` — belum diimplementasi |
-| SES production access | Modul `email` — belum diimplementasi |
-| S3 (e-tiket) | Modul `storage` — belum diimplementasi |
-| Secrets Manager | Modul `secrets` — belum diimplementasi |
-| ECS + ALB | Modul `compute` — belum diimplementasi |
-| Domain + ACM/SSL | Modul `dns` — belum diimplementasi |
-| CloudWatch (+ X-Ray) | Modul `observability` — belum diimplementasi |
+| VPC + subnets + routing | Modul `network` — sudah diimplementasi |
+| RDS PostgreSQL | Modul `data` — sudah diimplementasi |
+| ElastiCache Valkey | Modul `data` — sudah diimplementasi |
+| SQS + DLQ | Modul `messaging` — sudah diimplementasi |
+| SES (identitas + DKIM) | Modul `email` — sudah diimplementasi (production access tetap langkah manual) |
+| S3 (e-tiket) | Modul `storage` — sudah diimplementasi |
+| Secrets Manager | Modul `secrets` — sudah diimplementasi (shell saja, tanpa nilai) |
+| ECS + ALB | Modul `compute` — sudah diimplementasi |
+| Domain + ACM/SSL | Modul `dns` — sudah diimplementasi (sertifikat; validasi DNS manual) |
+| CloudWatch (alarm + dashboard) | Modul `observability` — sudah diimplementasi |
 
 Target: seluruh infra siap untuk evaluasi 13 November 2026. Evaluasi itu
 satu kesempatan — tidak ada fase "nanti" untuk infra inti.
