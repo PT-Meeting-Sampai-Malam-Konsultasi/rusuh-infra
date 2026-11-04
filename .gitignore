@@ -21,3 +21,8 @@ terraform.rc
 !*.example.tfvars
 
 # NOTE: .terraform.lock.hcl is intentionally NOT ignored (committed for reproducibility).
+
+# Shared CI/CD work (CICD-01)
+*.tfstate.*
+.env
+.superpowers/

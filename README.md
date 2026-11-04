@@ -102,3 +102,19 @@ yang ditebak-tebak di repo.
   pilihan hemat yang mengurangi ketahanan (mis. NAT off, single-AZ)
   harus ditulis alasannya di README modul yang bersangkutan, dan
   ditandai sebagai item hardening pasca-evaluasi bila relevan.
+
+## CI/CD (shared pipeline)
+
+Reusable GitHub Actions workflows for the backend repos live in `.github/workflows/`:
+- `backend-ci.yml`: checks, secret scan, Dockerfile lint, SAST, image build and scan, and the GHCR push on `main`;
+- `backend-cd.yml`: on a release tag, copies the image to ECR and deploys it to ECS.
+
+Each backend repo calls them with its own commands and pins `@v1`. Each stage has an on/off switch: an org variable
+that a repo can override.
+
+- How to plug a repo in: [`docs/ci-cd.md`](docs/ci-cd.md); starter callers are in `examples/`.
+- Design: [`docs/superpowers/specs/2026-11-04-shared-ci-cd-design.md`](docs/superpowers/specs/2026-11-04-shared-ci-cd-design.md).
+- Tracked in issue #2 (CICD-01).
+
+This repo is public so the public backend repos can call its workflows. Like the Terraform, it never holds secrets,
+state or account values.
