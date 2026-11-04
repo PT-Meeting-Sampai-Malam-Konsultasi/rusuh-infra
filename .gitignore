@@ -1,0 +1,23 @@
+# Terraform working files & secrets — never committed
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+crash.log
+crash.*.log
+
+# Personal overrides — never committed
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config (may contain credentials)
+.terraformrc
+terraform.rc
+
+# Variable files (may contain secrets) — only *.example.tfvars may be committed
+*.tfvars
+!*.example.tfvars
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored (committed for reproducibility).
