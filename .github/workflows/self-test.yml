@@ -14,6 +14,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
   go:
@@ -50,3 +51,18 @@ jobs:
       working-directory: tests/fixtures/go-app
       test: go test ./...
       switch-overrides: '{"CI_LINT":"yes"}'
+
+  cd-dry-run:
+    if: github.ref_type == 'tag'
+    needs: go
+    uses: ./.github/workflows/backend-cd.yml
+    with:
+      service: rusuh-ci-fixture-go
+
+  cd-missing-config:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-cd.yml
+    with:
+      service: rusuh-ci-fixture-go
+      environment: self-test
+      switch-overrides: '{"CD_ECS":"on"}'
