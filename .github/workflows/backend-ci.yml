@@ -1,0 +1,226 @@
+name: backend-ci
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        type: string
+        required: true
+      runtime:
+        type: string
+        required: true
+      runtime-version-file:
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: .
+      setup:
+        type: string
+        default: ''
+      format:
+        type: string
+        default: ''
+      lint:
+        type: string
+        default: ''
+      vuln:
+        type: string
+        default: ''
+      test:
+        type: string
+        default: ''
+      extra:
+        type: string
+        default: ''
+      platforms:
+        type: string
+        default: linux/amd64,linux/arm64
+      switch-overrides:
+        type: string
+        default: ''
+    outputs:
+      image:
+        value: ${{ jobs.switches.outputs.image-ref }}
+
+permissions:
+  contents: read
+
+jobs:
+  switches:
+    runs-on: ubuntu-latest
+    outputs:
+      lint: ${{ steps.resolve.outputs.CI_LINT }}
+      test: ${{ steps.resolve.outputs.CI_TEST }}
+      vuln: ${{ steps.resolve.outputs.CI_VULN }}
+      image: ${{ steps.resolve.outputs.CI_IMAGE }}
+      image-ref: ${{ steps.resolve.outputs.image-ref }}
+    steps:
+      - id: resolve
+        env:
+          CI_LINT: ${{ vars.CI_LINT }}
+          CI_TEST: ${{ vars.CI_TEST }}
+          CI_VULN: ${{ vars.CI_VULN }}
+          CI_IMAGE: ${{ vars.CI_IMAGE }}
+          OVERRIDES: ${{ inputs.switch-overrides }}
+          SERVICE: ${{ inputs.service }}
+          RUNTIME: ${{ inputs.runtime }}
+          CMD_SETUP: ${{ inputs.setup }}
+          CMD_FORMAT: ${{ inputs.format }}
+          CMD_LINT: ${{ inputs.lint }}
+          CMD_VULN: ${{ inputs.vuln }}
+          CMD_TEST: ${{ inputs.test }}
+          CMD_EXTRA: ${{ inputs.extra }}
+        run: |
+          set -euo pipefail
+          bad=0
+          if [[ ! "$SERVICE" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "::error::service must be a lowercase image name, got '$SERVICE'"
+            bad=1
+          fi
+          if [[ "$RUNTIME" != go && "$RUNTIME" != node ]]; then
+            echo "::error::runtime must be 'go' or 'node', got '$RUNTIME'"
+            bad=1
+          fi
+          [[ -n "${OVERRIDES:-}" ]] || OVERRIDES='{}'
+          image_ref="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$SERVICE:$GITHUB_SHA"
+          echo "image-ref=$image_ref" >> "$GITHUB_OUTPUT"
+          {
+            echo "### CI for \`$SERVICE\` ($RUNTIME)"
+            echo
+            echo "| Switch | Value |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for name in CI_LINT CI_TEST CI_VULN CI_IMAGE; do
+            value=$(jq -r --arg k "$name" '.[$k] // empty' <<<"$OVERRIDES")
+            [[ -n "$value" ]] || value=${!name:-on}
+            if [[ "$value" != on && "$value" != off ]]; then
+              echo "::error::$name must be 'on' or 'off', got '$value'"
+              bad=1
+            fi
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+            echo "| \`$name\` | $value |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          {
+            echo
+            echo "| Command | State |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for cmd in setup format lint vuln test extra; do
+            var="CMD_${cmd^^}"
+            state="configured"
+            [[ -n "${!var:-}" ]] || state="not configured"
+            echo "| \`$cmd\` | $state |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`$image_ref\`" >> "$GITHUB_STEP_SUMMARY"
+          exit "$bad"
+
+  checks:
+    needs: switches
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: inputs.runtime == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ inputs.runtime-version-file }}
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+      - if: inputs.runtime == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ inputs.runtime-version-file }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      - name: setup
+        if: inputs.setup != ''
+        run: ${{ inputs.setup }}
+      - name: format
+        if: needs.switches.outputs.lint == 'on' && inputs.format != ''
+        run: ${{ inputs.format }}
+      - name: lint
+        if: needs.switches.outputs.lint == 'on' && inputs.lint != ''
+        run: ${{ inputs.lint }}
+      - name: vuln
+        if: needs.switches.outputs.vuln == 'on' && inputs.vuln != ''
+        run: ${{ inputs.vuln }}
+      - name: test
+        if: needs.switches.outputs.test == 'on' && inputs.test != ''
+        run: ${{ inputs.test }}
+      - name: extra
+        if: inputs.extra != ''
+        run: ${{ inputs.extra }}
+
+  image:
+    needs: [switches, checks]
+    if: github.ref_type != 'tag' && needs.switches.outputs.image == 'on'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.working-directory }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ needs.switches.outputs.image-ref }}
+          cache-from: type=gha,scope=${{ inputs.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.service }}
+      - env:
+          IMAGE: ${{ needs.switches.outputs.image-ref }}
+        run: |
+          if [[ "$PUSH" == true ]]; then
+            echo "Pushed \`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Built \`$IMAGE\`, not pushed (only \`main\` pushes)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  verify-release:
+    needs: switches
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE: ${{ needs.switches.outputs.image-ref }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: tagged commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $TAG points at $GITHUB_SHA, which is not on main"
+            exit 1
+          fi
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: image exists
+        run: |
+          if ! docker buildx imagetools inspect "$IMAGE" > /dev/null; then
+            echo "::error::image $IMAGE not found; wait for main CI on this commit to finish, then re-run"
+            exit 1
+          fi
+          echo "Release \`$TAG\` uses \`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"

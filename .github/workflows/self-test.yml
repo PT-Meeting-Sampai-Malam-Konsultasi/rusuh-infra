@@ -1,0 +1,52 @@
+name: self-test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      negative:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  go:
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-go
+      runtime: go
+      runtime-version-file: tests/fixtures/go-app/go.mod
+      working-directory: tests/fixtures/go-app
+      format: test -z "$(gofmt -l .)"
+      lint: go vet ./...
+      vuln: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      test: go test -race ./...
+      extra: go build ./...
+
+  node:
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-node
+      runtime: node
+      runtime-version-file: tests/fixtures/node-app/.nvmrc
+      working-directory: tests/fixtures/node-app
+      setup: npm ci
+      lint: npm run lint
+      test: npm test
+
+  bad-switch:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-go
+      runtime: go
+      runtime-version-file: tests/fixtures/go-app/go.mod
+      working-directory: tests/fixtures/go-app
+      test: go test ./...
+      switch-overrides: '{"CI_LINT":"yes"}'
