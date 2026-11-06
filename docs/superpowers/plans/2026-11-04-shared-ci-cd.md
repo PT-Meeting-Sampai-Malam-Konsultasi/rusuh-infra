@@ -2,11 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A public `rusuh-infra` repo with two reusable GitHub Actions workflows (CI and CD) that backend repos call with their own commands, switchable per stage by org variables with per-repo overrides, and `rusuh-queue` moved onto it.
+**Goal:** The org `rusuh-infra` repo (public, see Task 5 Step 1) with two reusable GitHub Actions workflows (CI and CD) that backend repos call with their own commands, switchable per stage by org variables with per-repo overrides, and `rusuh-queue` moved onto it.
 
 **Architecture:** `backend-ci.yml` runs checks and builds/pushes the image to GHCR on `main`; on a `v*` tag it only verifies the image for that commit exists. `backend-cd.yml` copies that image to ECR and deploys it to ECS (k3s is a failing placeholder). Every stage reads an `on`/`off` switch from `vars` (repo value beats org value, GitHub-native). Self-test workflows in `rusuh-infra` call both workflows against tiny Go and Node fixtures.
 
-**Tech Stack:** GitHub Actions reusable workflows (`workflow_call`), bash, docker buildx, crane, aws-actions (OIDC, ECR login, ECS render/deploy), actionlint.
+**Tech Stack:** GitHub Actions reusable workflows (`workflow_call`), bash, docker buildx, crane, aws-actions (OIDC, ECR login, ECS render/deploy), actionlint; since 6 Nov also gosec, gitleaks (CLI), hadolint, Trivy.
+
+**Status 6 Nov:** Tasks 1–4 and the final review are done locally (`247e426..e3ed012`, not pushed). Task 4b, added on
+6 Nov, adopts stages from the corporate template (spec "Update 6 Nov"). Task 5 is rewritten: the org `rusuh-infra`
+already exists, and it is private.
 
 **Spec:** `rusuh-infra/docs/superpowers/specs/2026-11-04-shared-ci-cd-design.md`
 
@@ -14,7 +18,7 @@
 
 - No comments in workflows, scripts or fixtures unless the implementation is ambiguous without one.
 - `rusuh-infra` is public: no secrets, no Terraform state, no AWS account IDs or ARNs in the repo.
-- Switch values are exactly `on` or `off`; anything else fails the run. Unset = default: `CI_LINT`, `CI_TEST`, `CI_VULN`, `CI_IMAGE` on; `CD_ECS`, `CD_K3S` off.
+- Switch values are exactly `on` or `off`; anything else fails the run. Unset = default: `CI_LINT`, `CI_TEST`, `CI_VULN`, `CI_IMAGE`, `CI_SAST`, `CI_SECRETS`, `CI_IMAGE_SCAN` on; `CD_ECS`, `CD_K3S` off.
 - Image: `ghcr.io/pt-meeting-sampai-malam-konsultasi/<service>:<full commit sha>`, platforms `linux/amd64,linux/arm64`. PRs build but never push; `main` pushes; tags never build.
 - No long-lived AWS keys: OIDC role from `AWS_ROLE_ARN` only.
 - CD concurrency group `cd-<service>-<environment>`, `cancel-in-progress: false`.
@@ -130,15 +134,101 @@
 - [ ] **Step 4:** `make lint` (examples are linted too: add `examples/*.yml` to the actionlint call) → exit 0.
 - [ ] **Step 5: Commit** `[INIT] | david | document the shared pipeline and add Go and Node starter callers`.
 
-### Task 5: Publish `rusuh-infra` and prove it live (needs David's OK at each step)
+### Task 4b: Adopt stages from the corporate template (added 6 Nov)
 
-- [ ] **Step 1:** Ask David; then `gh repo create PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra --public` and push `main`.
-- [ ] **Step 2:** Ask David; create environment `self-test` (no variables) and `production` in `rusuh-infra`. Org variables: `CI_LINT=on`, `CI_TEST=on`, `CI_VULN=on`, `CI_IMAGE=on`, `CD_ECS=off`, `CD_K3S=off`.
-- [ ] **Step 3: Verify the push run.** `gh run watch` on the `main` self-test run. Expected: run green; switches summary lists every switch `on` and Node `vuln`/`extra` as "not configured"; fixture images pushed to GHCR.
-- [ ] **Step 4: Verify the negative cases.** `gh workflow run self-test.yml -f negative=true`. Expected: `bad-switch` fails with `CI_LINT` and `yes` in the error; `cd-missing-config` fails listing all six AWS variables; `go` and `node` green.
-- [ ] **Step 5:** Tag `v1.0.0` and `v1` on the `main` commit, push tags. Expected tag run: `verify-release` green for both fixtures; `cd-dry-run` summary says "Dry run: nothing deployed".
-- [ ] **Step 6: Verify the not-on-main path.** With OK, push a scratch branch with one commit and a tag `v0.0.0-check` on it. Expected: `verify-release` fails with the "not on main" message. Delete the tag and branch afterwards (with OK).
-- [ ] **Step 7:** If any step fails, fix in a new commit, re-tag `v1.0.1` and move `v1` (moving `v1` is a tag update; ask David first since it rewrites a pushed tag).
+**Files:**
+- Modify: `.github/workflows/backend-ci.yml`, `.github/workflows/backend-cd.yml`, `.github/workflows/self-test.yml`;
+- Modify: `examples/go-caller.yml`, `examples/node-caller.yml`, `docs/ci-cd.md`;
+- Add: `tests/fixtures/go-app/.leak` (only on a negative-case branch, never on `main`; see Step 2).
+
+**Interfaces:**
+- **New `backend-ci.yml` inputs:** `sast` (command, default empty) and `coverage` (command, default empty).
+- **New switches:** `CI_SAST`, `CI_SECRETS`, `CI_IMAGE_SCAN`, all default `on`. The `switches` job validates and
+  prints them like the others.
+- **`backend-cd.yml`:** reads environment variable `SMOKE_URL`. Unset means "not configured" in the summary, never a
+  failure.
+
+- [ ] **Step 1: Self-test entries first.**
+  - The Go fixture caller passes `sast: go run github.com/securego/gosec/v2/cmd/gosec@v2.23.0 -severity high
+    -exclude-dir=_mock ./...` and `coverage: go test -coverprofile=c.out ./... && go tool cover -func=c.out | tail -1`.
+  - The Node fixture leaves both empty, so the summary must show "not configured".
+  - Manual-only negative jobs (under `inputs.negative`):
+    - `bad-dockerfile`: a fixture copy whose Dockerfile has `FROM node:latest`, so hadolint DL3007 fails;
+    - `leaky`: a fixture with a fake AWS key in a file, so gitleaks fails;
+    - `vulnerable-image`: a fixture Dockerfile on an old base image, so Trivy fails on HIGH/CRITICAL;
+    - `bad-tag`: `verify-release` run with tag `v1.2` or `v1.2.3-rc1`, which must fail with the allowed pattern in
+      the message.
+  - Keep the negative fixtures out of `main`'s normal path: they are built only when `negative` is true.
+- [ ] **Step 2: Run lint, expect failure.** `make lint`: FAIL (unknown inputs `sast` / `coverage`).
+- [ ] **Step 3: Implement in `backend-ci.yml`.** Each step is guarded by its switch, and the switch summary lists it.
+  - `checks`:
+    - `secrets` step, `CI_SECRETS`: gitleaks CLI pinned by version and checksum. On a PR it scans
+      `--log-opts="${{ github.event.pull_request.base.sha }}..${{ github.sha }}"`; on a push, the pushed range.
+      Checkout needs `fetch-depth: 0`.
+    - `dockerfile` step, `CI_LINT`: `hadolint ${working-directory}/Dockerfile` when the file exists, else "no
+      Dockerfile" in the summary.
+    - `sast` step, `CI_SAST`: when the input is non-empty.
+    - `coverage` step, `CI_TEST`: when the input is non-empty; output appended to `$GITHUB_STEP_SUMMARY`.
+  - `image`, `CI_IMAGE_SCAN`, before the multi-arch push:
+    - build `linux/amd64` with `load: true` and the same GHA cache;
+    - `aquasecurity/trivy-action` (pinned) with `severity: HIGH,CRITICAL`, `ignore-unfixed: true`, `exit-code: 1`;
+    - then the existing multi-arch build/push, which reuses the cache.
+  - `verify-release`: first check the tag against
+    `^v[0-9]+\.[0-9]+\.[0-9]+(-(hotfix|bugfix)\.[0-9]+)?$`.
+- [ ] **Step 4: Implement in `backend-cd.yml`.** After `deploy-ecs`, a `smoke` step:
+  - if `vars.SMOKE_URL` is set, `curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "$SMOKE_URL"`;
+  - a failure fails the run, and the summary shows the URL and the result.
+- [ ] **Step 5: Examples and docs.**
+  - `go-caller.yml` gets the `sast` and `coverage` commands for `rusuh-queue`.
+  - `node-caller.yml` keeps them empty, with a comment-free note in `docs/ci-cd.md`.
+  - `docs/ci-cd.md` gets:
+    - the three new switches;
+    - `SMOKE_URL`;
+    - the release-tag pattern;
+    - "Stages adopted from the corporate template" (a short table pointing to the spec).
+- [ ] **Step 6: Lint passes.** `make lint`: exit 0.
+- [ ] **Step 7: Commit** `[INIT] | david | add SAST, secret scan, Dockerfile lint, image scan, coverage summary and a post-deploy smoke check`.
+
+### Task 5: Bring the template into the org `rusuh-infra` and prove it live (needs David's OK at each step)
+
+- [ ] **Step 1: Visibility (decision with Backend 2).**
+  - Make `rusuh-infra` public: `rusuh-queue` and `rusuh-core` are public and cannot call private workflows.
+    Otherwise make both backend repos private, and set `rusuh-infra` Actions access to "organization".
+  - Expected: `gh repo view …/rusuh-infra --json visibility` shows the agreed value.
+  - Before going public, check that no file in any branch holds a secret or an account value:
+    `gitleaks detect --log-opts=--all`.
+- [ ] **Step 2: Branch and cherry-pick.**
+  - In a fresh clone of the org repo: `git checkout -b feature/shared-ci-cd origin/main`.
+  - `git remote add local ../rusuh-infra` (the local repo), `git fetch local`, then
+    `git cherry-pick 247e426^..<Task 4b commit>`.
+  - **Conflicts:**
+    - `README.md`: keep Backend 2's scaffold, and add a "CI/CD" section with links to `docs/ci-cd.md` and the spec;
+    - `.gitignore`: take the union.
+  - Make sure `.superpowers/` stays untracked.
+  - `make lint`: exit 0.
+- [ ] **Step 3: Push and PR (with OK).**
+  - Push `feature/shared-ci-cd` and open a PR into `main` whose description explains the pipeline, links the spec,
+    and lists the required org settings.
+  - Ask Backend 2 for review.
+  - Expected: the `self-test` workflow runs on the PR and is green; `bad-*` and `leaky` don't run without `negative`.
+- [ ] **Step 4: Settings (with OK).**
+  - Create the environments `self-test` (no variables) and `production` in `rusuh-infra`.
+  - Org variables: `CI_LINT=on`, `CI_TEST=on`, `CI_VULN=on`, `CI_IMAGE=on`, `CI_SAST=on`, `CI_SECRETS=on`,
+    `CI_IMAGE_SCAN=on`, `CD_ECS=off`, `CD_K3S=off`.
+- [ ] **Step 5: Merge (after review).** Expected: the `main` self-test run is green.
+- [ ] **Step 6: Verify the push run.** `gh run watch` on the `main` self-test run. Expected: run green; switches summary lists every switch `on` and Node `vuln`/`extra` as "not configured"; fixture images pushed to GHCR.
+- [ ] **Step 7: Verify the negative cases.** `gh workflow run self-test.yml -f negative=true`.
+  - Expected:
+    - `bad-switch` fails with `CI_LINT` and `yes` in the error;
+    - `cd-missing-config` fails, listing all six AWS variables;
+    - `bad-dockerfile` fails on DL3007;
+    - `leaky` fails, naming the finding;
+    - `vulnerable-image` fails on Trivy;
+    - `bad-tag` fails with the tag pattern;
+    - `go` and `node` are green.
+- [ ] **Step 8:** Tag `v1.0.0` and `v1` on the `main` commit, push tags. Expected tag run: `verify-release` green for both fixtures; `cd-dry-run` summary says "Dry run: nothing deployed".
+- [ ] **Step 9: Verify the not-on-main path.** With OK, push a scratch branch with one commit and a tag `v0.0.0-check` on it. Expected: `verify-release` fails with the "not on main" message. Delete the tag and branch afterwards (with OK).
+- [ ] **Step 10:** If any step fails, fix it on a new branch with a PR, re-tag `v1.0.1` and move `v1` (moving `v1` is a tag update; ask David first since it rewrites a pushed tag).
 
 ### Task 6: Move `rusuh-queue` onto the shared pipeline
 
@@ -148,7 +238,13 @@
 - [ ] **Step 1:** From `main` in `rusuh-queue`, create branch `ci/shared-pipeline`. Leave `Makefile`, `docs/`, `cmd/fakecore`, `api/.apidog` untouched.
 - [ ] **Step 2:** Replace `ci.yml` with the Go caller. `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/ci.yml` → exit 0.
 - [ ] **Step 3:** Ask David for the issue code, commit `[<code>] | david | run CI on the shared rusuh-infra pipeline`, push (with OK), open PR (with OK).
-- [ ] **Step 4: Verify on the PR.** Expected: `ci / switches`, `ci / checks` green (same steps as the old `ci.yml`, sqlc drift under `extra`), `ci / image` built and not pushed; no `cd` job.
+- [ ] **Step 4: Verify on the PR.**
+  - `ci / switches` and `ci / checks` are green: the same steps as the old `ci.yml`, with sqlc drift under `extra`,
+    plus secrets, Dockerfile lint, gosec and the coverage line in the summary.
+  - `ci / image` is built, Trivy-scanned and not pushed.
+  - There is no `cd` job.
+  - If gosec or Trivy flag existing code, fix it in `rusuh-queue` in the same PR, or record an exclusion with its
+    reason in the caller.
 - [ ] **Step 5: Verify override.** With OK, set repo variable `CI_VULN=off` on `rusuh-queue`, re-run: summary shows `CI_VULN off`, vuln step skipped. Delete the repo variable, re-run: back to `on`.
 - [ ] **Step 6:** Record the required check names (`ci / checks`, `ci / image`) in `rusuh-infra/docs/ci-cd.md`, commit `[INIT] | david | record required status checks`, push. With OK, set them as required in `rusuh-queue` branch protection for `main`.
 - [ ] **Step 7:** Capture in ngotak daily note: one line on what shipped and the check names.
