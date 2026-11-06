@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
       negative:
@@ -29,6 +29,8 @@ jobs:
       vuln: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       test: go test -race ./...
       extra: go build ./...
+      sast: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -severity high -exclude-dir=_mock ./...
+      coverage: go test -coverprofile=c.out ./... > /dev/null && go tool cover -func=c.out | tail -1
 
   node:
     uses: ./.github/workflows/backend-ci.yml
@@ -51,6 +53,45 @@ jobs:
       working-directory: tests/fixtures/go-app
       test: go test ./...
       switch-overrides: '{"CI_LINT":"yes"}'
+
+  bad-dockerfile:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-bad-dockerfile
+      runtime: go
+      runtime-version-file: tests/fixtures/go-app/go.mod
+      working-directory: tests/fixtures/bad-dockerfile
+
+  leaky:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-leaky
+      runtime: go
+      runtime-version-file: tests/fixtures/go-app/go.mod
+      working-directory: tests/fixtures/leaky
+      switch-overrides: '{"CI_IMAGE":"off"}'
+
+  vulnerable-image:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-vulnerable
+      runtime: go
+      runtime-version-file: tests/fixtures/go-app/go.mod
+      working-directory: tests/fixtures/vulnerable-image
+      switch-overrides: '{"CI_LINT":"off"}'
+
+  bad-tag:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-go
+      runtime: go
+      runtime-version-file: tests/fixtures/go-app/go.mod
+      working-directory: tests/fixtures/go-app
+      release-tag: v1.2.3-rc1
 
   cd-dry-run:
     if: github.ref_type == 'tag'

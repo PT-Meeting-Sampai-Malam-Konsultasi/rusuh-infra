@@ -125,6 +125,8 @@ jobs:
     needs: [switches, promote-ecr]
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    outputs:
+      smoke: ${{ steps.smoke.outputs.result }}
     permissions:
       contents: read
       id-token: write
@@ -152,6 +154,24 @@ jobs:
           cluster: ${{ vars.ECS_CLUSTER }}
           service: ${{ vars.ECS_SERVICE }}
           wait-for-service-stability: true
+      - id: smoke
+        name: smoke check
+        env:
+          SMOKE_URL: ${{ vars.SMOKE_URL }}
+        run: |
+          if [[ -z "${SMOKE_URL:-}" ]]; then
+            echo "result=not configured" >> "$GITHUB_OUTPUT"
+            echo "Smoke check: not configured (set SMOKE_URL on the environment)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if curl -fsS -o /dev/null --max-time 10 --retry 10 --retry-delay 6 --retry-all-errors "$SMOKE_URL"; then
+            echo "result=passed ($SMOKE_URL)" >> "$GITHUB_OUTPUT"
+            echo "Smoke check: \`$SMOKE_URL\` answered 2xx" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "result=failed ($SMOKE_URL)" >> "$GITHUB_OUTPUT"
+            echo "::error::smoke check failed: $SMOKE_URL did not answer 2xx after 10 retries"
+            exit 1
+          fi
 
   deploy-k3s:
     needs: switches
@@ -176,6 +196,7 @@ jobs:
           K3S: ${{ needs.switches.outputs.k3s }}
           ECS_RESULT: ${{ needs.deploy-ecs.result }}
           K3S_RESULT: ${{ needs.deploy-k3s.result }}
+          SMOKE: ${{ needs.deploy-ecs.outputs.smoke }}
         run: |
           {
             if [[ "$ECS" != on && "$K3S" != on ]]; then
@@ -192,5 +213,6 @@ jobs:
             echo "| Image | \`$IMAGE\` |"
             echo "| Environment | \`$ENVIRONMENT\` |"
             echo "| ECS | ${ECS:-unknown} ($ECS_RESULT) |"
+            echo "| Smoke check | ${SMOKE:-not run} |"
             echo "| k3s | ${K3S:-unknown} ($K3S_RESULT) |"
           } >> "$GITHUB_STEP_SUMMARY"

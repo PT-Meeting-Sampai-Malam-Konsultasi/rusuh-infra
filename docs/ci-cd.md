@@ -19,9 +19,17 @@ Callers pin `@v1`. `v1` moves to the newest `v1.x.y` release of this repo.
 
 | Event | CI | CD |
 | --- | --- | --- |
-| Pull request | checks, image built (not pushed) | no |
-| Push to `main` | checks, image built and pushed to GHCR | no |
-| Push of a `v*` tag | `verify-release` only: the commit is on `main` and its GHCR image exists | yes, after CI |
+| Pull request | checks, image built and scanned (not pushed) | no |
+| Push to `main` | checks, image built, scanned and pushed to GHCR | no |
+| Push of a `v*` tag | `verify-release` only: the tag is `vX.Y.Z` (optionally `-hotfix.N` / `-bugfix.N`), the commit is on `main` and its GHCR image exists | yes, after CI |
+
+`checks` runs, in order:
+1. the secret scan (gitleaks over the working directory);
+2. the Dockerfile lint (hadolint, fails from `warning` up; skipped with a note when there is no `Dockerfile`);
+3. setup, then `format`, `lint`, `vuln`, `test`, `sast`, `coverage` and `extra`.
+
+`image` builds `linux/amd64` first and scans it with Trivy. It fails on HIGH or CRITICAL issues that have a fix.
+Only then does it build all platforms (from the same cache) and push.
 
 Image: `ghcr.io/pt-meeting-sampai-malam-konsultasi/<service>:<full commit sha>`, platforms `linux/amd64,linux/arm64`. A release never rebuilds: CD copies that image.
 
@@ -38,9 +46,12 @@ Image: `ghcr.io/pt-meeting-sampai-malam-konsultasi/<service>:<full commit sha>`,
 | `lint` | no | empty | runs with the `CI_LINT` switch |
 | `vuln` | no | empty | runs with the `CI_VULN` switch |
 | `test` | no | empty | runs with the `CI_TEST` switch |
+| `sast` | no | empty | static security analysis, e.g. gosec; runs with the `CI_SAST` switch |
+| `coverage` | no | empty | prints a coverage line into the run summary (no gate); runs with the `CI_TEST` switch, after `test` |
 | `extra` | no | empty | repo-only checks, always run |
 | `platforms` | no | `linux/amd64,linux/arm64` | image platforms |
 | `switch-overrides` | no | empty | JSON, for this repo's self-test only |
+| `release-tag` | no | empty | checks this tag as if it had been pushed; for this repo's self-test only |
 
 An empty command is skipped and shown as "not configured". Commands run in bash with `-e -o pipefail`; multi-line commands are fine.
 
@@ -65,6 +76,9 @@ Each switch is a GitHub Actions variable. Values are exactly `on` or `off`; anyt
 | `CI_TEST` | on | `test` |
 | `CI_VULN` | on | `vuln` |
 | `CI_IMAGE` | on | image build |
+| `CI_SAST` | on | `sast` |
+| `CI_SECRETS` | on | secret scan (gitleaks) |
+| `CI_IMAGE_SCAN` | on | image scan (Trivy) before any push |
 | `CD_ECS` | off | ECR copy and ECS deploy |
 | `CD_K3S` | off | k3s deploy (not implemented; fails if on) |
 
@@ -91,6 +105,7 @@ Set on the GitHub Environment named by `environment` (e.g. `production`) in each
 | `ECS_SERVICE` | e.g. `rusuh-queue` |
 | `ECS_TASK_FAMILY` | from Terraform |
 | `ECS_CONTAINER` | optional, defaults to `service` |
+| `SMOKE_URL` | optional; after the deploy is stable, CD needs a 2xx from it (10 retries, 6 s apart), e.g. `https://api.example/readyz` |
 
 With `CD_ECS=on`, a missing variable fails the run before anything touches AWS. The ECR repository is named after `service`. No AWS keys are stored anywhere: the role is assumed through GitHub OIDC.
 
@@ -116,7 +131,8 @@ Fork PRs get no `id-token` and a read-only token, so they cannot push images or 
 1. Merge to `main`.
 2. Wait for `main` CI to be green; its image is now in GHCR.
 3. If the release needs database migrations, apply them by hand first. CD does not run migrations.
-4. Push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. A fix on top of a release is `vX.Y.Z-hotfix.N` or
+   `vX.Y.Z-bugfix.N`. Any other `v*` tag fails `verify-release`.
 
 When every CD switch is off, the tag run still writes a "Dry run: nothing deployed" summary.
 
@@ -127,5 +143,36 @@ Filled in after the first live run on `rusuh-queue`.
 ## Releasing this repo
 
 1. Merge to `main`; the `self-test` workflow must be green.
-2. Run the negative self-test: `gh workflow run self-test.yml -f negative=true`. `bad-switch` and `cd-missing-config` must fail with their messages; the rest must pass.
+2. Run the negative self-test: `gh workflow run self-test.yml -f negative=true`. These must fail with their
+   messages, and the rest must pass:
+   - `bad-switch`;
+   - `cd-missing-config`;
+   - `bad-dockerfile` (hadolint DL3007);
+   - `leaky` (gitleaks);
+   - `vulnerable-image` (Trivy);
+   - `bad-tag` (tag pattern).
 3. Tag `v1.x.y` and move `v1` to the same commit.
+
+## Images that pass the scan
+
+- **Node:** the official `node` images ship npm, and npm's own dependencies often carry fixed HIGH issues that Trivy
+  reports. Install the dependencies in a build stage, and remove npm, npx and corepack from the runtime stage (see
+  `tests/fixtures/node-app/Dockerfile`). The app does not need them to run.
+- **Go:** a static binary on `gcr.io/distroless/static-debian12:nonroot` scans clean (`tests/fixtures/go-app`).
+
+## Stages adopted from the corporate template
+
+On 6 Nov the Telkomsel GitLab stage templates were compared with this pipeline. The full table is in the spec,
+`docs/superpowers/specs/2026-11-04-shared-ci-cd-design.md`, under "Update 6 Nov".
+
+- **Adopted:**
+  - gosec (`sast`);
+  - gitleaks;
+  - hadolint;
+  - Trivy;
+  - a coverage summary;
+  - the post-deploy smoke check (`SMOKE_URL`);
+  - `-hotfix.N` / `-bugfix.N` release tags.
+- **Later:** Sonar and DAST.
+- **Not adopted:** multi-environment by branch, Kong, blue-green, Helm, and the Telkomsel-internal tools.
+
