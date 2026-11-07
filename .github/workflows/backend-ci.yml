@@ -221,7 +221,7 @@ jobs:
           cache-from: type=gha,scope=${{ inputs.service }}
       - name: image scan
         if: needs.switches.outputs.image-scan == 'on'
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ needs.switches.outputs.image-ref }}
           severity: HIGH,CRITICAL
