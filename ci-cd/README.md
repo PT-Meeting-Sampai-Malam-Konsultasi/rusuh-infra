@@ -142,7 +142,16 @@ When every CD switch is off, the tag run still writes a "Dry run: nothing deploy
 
 ## Required status checks
 
-Filled in after the first live run on `rusuh-queue`.
+A caller job named `ci` reports these checks. Make them required on `main` in every service repo:
+
+| Check | What it covers |
+| --- | --- |
+| `ci / checks` | format, lint, vuln, test with coverage, SAST, secrets, Dockerfile lint, `extra` |
+| `ci / image` | the image build, with the Trivy scan before any push |
+
+Leave `ci / switches` (always green) and `ci / verify-release` (tags only) unrequired.
+
+**Set up so far:** `rusuh-queue` (7 Nov), with "require branches to be up to date".
 
 ## Releasing this repo
 
