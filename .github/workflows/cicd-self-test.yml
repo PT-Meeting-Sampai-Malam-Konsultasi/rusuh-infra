@@ -1,4 +1,4 @@
-name: self-test
+name: cicd-self-test
 
 on:
   pull_request:
@@ -22,8 +22,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-go
       runtime: go
-      runtime-version-file: tests/fixtures/go-app/go.mod
-      working-directory: tests/fixtures/go-app
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/go-app
       format: test -z "$(gofmt -l .)"
       lint: go vet ./...
       vuln: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
@@ -37,8 +37,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-node
       runtime: node
-      runtime-version-file: tests/fixtures/node-app/.nvmrc
-      working-directory: tests/fixtures/node-app
+      runtime-version-file: ci-cd/tests/fixtures/node-app/.nvmrc
+      working-directory: ci-cd/tests/fixtures/node-app
       setup: npm ci
       lint: npm run lint
       test: npm test
@@ -49,8 +49,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-go
       runtime: go
-      runtime-version-file: tests/fixtures/go-app/go.mod
-      working-directory: tests/fixtures/go-app
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/go-app
       test: go test ./...
       switch-overrides: '{"CI_LINT":"yes"}'
 
@@ -60,8 +60,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-bad-dockerfile
       runtime: go
-      runtime-version-file: tests/fixtures/go-app/go.mod
-      working-directory: tests/fixtures/bad-dockerfile
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/bad-dockerfile
 
   leaky:
     if: inputs.negative
@@ -69,8 +69,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-leaky
       runtime: go
-      runtime-version-file: tests/fixtures/go-app/go.mod
-      working-directory: tests/fixtures/leaky
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/leaky
       switch-overrides: '{"CI_IMAGE":"off"}'
 
   vulnerable-image:
@@ -79,8 +79,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-vulnerable
       runtime: go
-      runtime-version-file: tests/fixtures/go-app/go.mod
-      working-directory: tests/fixtures/vulnerable-image
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/vulnerable-image
       switch-overrides: '{"CI_LINT":"off"}'
 
   bad-tag:
@@ -89,8 +89,8 @@ jobs:
     with:
       service: rusuh-ci-fixture-go
       runtime: go
-      runtime-version-file: tests/fixtures/go-app/go.mod
-      working-directory: tests/fixtures/go-app
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/go-app
       release-tag: v1.2.3-rc1
 
   cd-dry-run:

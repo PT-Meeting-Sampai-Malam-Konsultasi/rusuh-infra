@@ -1,5 +1,9 @@
 # Shared backend CI/CD
 
+Everything for CI/CD lives in this folder, except the workflows themselves: GitHub only runs reusable workflows from
+`.github/workflows/` (`backend-ci.yml`, `backend-cd.yml`, `cicd-self-test.yml`). Lint both with `make -C ci-cd lint`
+from the repo root.
+
 Two reusable workflows that every Rusuh backend calls:
 
 - `.github/workflows/backend-ci.yml`: checks, image build and the release check.
@@ -9,7 +13,7 @@ Design and reasons: [`superpowers/specs/2026-11-04-shared-ci-cd-design.md`](supe
 
 ## Plug a repo in
 
-1. Copy [`examples/go-caller.yml`](../examples/go-caller.yml) or [`examples/node-caller.yml`](../examples/node-caller.yml) to `.github/workflows/ci.yml` in the repo.
+1. Copy [`examples/go-caller.yml`](examples/go-caller.yml) or [`examples/node-caller.yml`](examples/node-caller.yml) to `.github/workflows/ci.yml` in the repo.
 2. Set `service` (both jobs) to the repo's image name, and the commands to the repo's own.
 3. Open a PR. The run summary lists every switch and which commands are configured.
 
@@ -143,7 +147,7 @@ Filled in after the first live run on `rusuh-queue`.
 ## Releasing this repo
 
 1. Merge to `main`; the `self-test` workflow must be green.
-2. Run the negative self-test: `gh workflow run self-test.yml -f negative=true`. These must fail with their
+2. Run the negative self-test: `gh workflow run cicd-self-test.yml -f negative=true`. These must fail with their
    messages, and the rest must pass:
    - `bad-switch`;
    - `cd-missing-config`;
@@ -157,13 +161,13 @@ Filled in after the first live run on `rusuh-queue`.
 
 - **Node:** the official `node` images ship npm, and npm's own dependencies often carry fixed HIGH issues that Trivy
   reports. Install the dependencies in a build stage, and remove npm, npx and corepack from the runtime stage (see
-  `tests/fixtures/node-app/Dockerfile`). The app does not need them to run.
-- **Go:** a static binary on `gcr.io/distroless/static-debian12:nonroot` scans clean (`tests/fixtures/go-app`).
+  `ci-cd/tests/fixtures/node-app/Dockerfile`). The app does not need them to run.
+- **Go:** a static binary on `gcr.io/distroless/static-debian12:nonroot` scans clean (`ci-cd/tests/fixtures/go-app`).
 
 ## Stages adopted from the corporate template
 
 On 6 Nov the Telkomsel GitLab stage templates were compared with this pipeline. The full table is in the spec,
-`docs/superpowers/specs/2026-11-04-shared-ci-cd-design.md`, under "Update 6 Nov".
+[`ci-cd/docs/2026-11-04-shared-ci-cd-design.md`](docs/2026-11-04-shared-ci-cd-design.md), under "Update 6 Nov".
 
 - **Adopted:**
   - gosec (`sast`);

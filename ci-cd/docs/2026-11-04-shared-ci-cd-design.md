@@ -30,7 +30,7 @@ must be switchable on/off **centrally**, and each repo may **override** a switch
 5. Environment is a parameter. Only `production` exists now; more (e.g. `staging`) can be added later
    without a new pipeline.
 6. `rusuh-queue` is moved onto the shared pipeline as the first user and proof. The Node
-   starter caller (`examples/node-caller.yml`) is written for later; `rusuh-core` itself is not
+   starter caller (`ci-cd/examples/node-caller.yml`) is written for later; `rusuh-core` itself is not
    touched until Backend 2 finishes its skeleton.
 
 ## Non-goals
@@ -43,7 +43,7 @@ must be switchable on/off **centrally**, and each repo may **override** a switch
 - Frontend repos (`rusuh-web`, `rusuh-app`).
 - Staging, approvals, rollback automation.
 - **Database migrations in CD.** Migrations (goose, `db/migrations` in rusuh-queue) are run
-  **manually** before a release that needs them. CD does not run them. `docs/ci-cd.md` must say
+  **manually** before a release that needs them. CD does not run them. `ci-cd/README.md` must say
   so in the release checklist: "apply migrations first, then tag".
 - Any change to `rusuh-core` (repo, Dockerfile, workflows) in this work.
 
@@ -142,16 +142,17 @@ GitHub only runs shared (reusable) workflows from `.github/workflows/`, so:
 
 ```
 rusuh-infra/
-  .github/workflows/
-    backend-ci.yml        # reusable: checks + image build/push to GHCR
-    backend-cd.yml        # reusable: promote to ECR + deploy targets
-  docs/
-    superpowers/specs/    # this document
-    ci-cd.md              # how a repo plugs in; table of switches and variables
-  examples/
-    go-caller.yml         # starter caller for a Go service (rusuh-queue)
-    node-caller.yml       # starter caller for a Node service (rusuh-core)
-  terraform/              # later
+  .github/workflows/        # GitHub only runs reusable workflows from here
+    backend-ci.yml          # reusable: checks + image build/scan/push to GHCR
+    backend-cd.yml          # reusable: promote to ECR + deploy targets
+    cicd-self-test.yml      # runs both against the fixtures
+  ci-cd/                    # everything else for CI/CD (moved here on 7 Nov)
+    README.md               # how a repo plugs in; switches, variables, release checklist
+    Makefile                # actionlint over the workflows and examples
+    docs/                   # this document and the plan
+    examples/               # go-caller.yml, node-caller.yml
+    tests/fixtures/         # self-test fixtures
+  bootstrap/ environments/ modules/   # Terraform (Backend 2)
 ```
 
 `rusuh-infra` is public, so no access setting is needed for callers (6 Nov: it is private today; see "Update 6 Nov").
@@ -253,7 +254,7 @@ Runs on every PR and on push to `main` and to `v*` tags.
 
 **Merge gate**: the checks that are switched on. Branch protection on each backend repo
 requires the `ci / checks` job (and `ci / image` build). Builder: confirm the exact status
-check names after the first run and record them in `docs/ci-cd.md`.
+check names after the first run and record them in `ci-cd/README.md`.
 
 Permissions: `contents: read` by default; `packages: write` only on `image`.
 
@@ -291,7 +292,7 @@ Variables needed (names are a proposal; the builder may rename and must document
 | `ECS_TASK_FAMILY` | repo + environment | from Terraform |
 | `ECS_CONTAINER` | repo + environment (optional) | defaults to `service` |
 
-**Contract with the later Terraform (builder's call, to record in `docs/ci-cd.md`):** Terraform
+**Contract with the later Terraform (builder's call, to record in `ci-cd/README.md`):** Terraform
 owns the cluster, service, IAM and the *first* task definition; CD owns the image in later
 revisions. Terraform must `ignore_changes` on the service's `task_definition` so an apply does
 not roll the image back. No task-definition file lives in the backend repos.
@@ -307,7 +308,7 @@ at a time (`concurrency: cd-<service>-<environment>`, no cancel).
 3. In `rusuh-queue`, replace `ci.yml` with the caller. Same checks as today, sqlc drift as `extra`.
    Prove on a PR: checks run, image builds but does not push. Prove on a test tag with `CD_ECS=off`:
    summary shows what would deploy.
-4. Later, when Backend 2's skeleton is ready: start `rusuh-core` from `examples/node-caller.yml`
+4. Later, when Backend 2's skeleton is ready: start `rusuh-core` from `ci-cd/examples/node-caller.yml`
    together with Backend 2 (not part of this plan).
 5. After Terraform: set AWS variables, switch `CD_ECS=on`, tag a release.
 

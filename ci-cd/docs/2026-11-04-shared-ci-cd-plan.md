@@ -12,7 +12,11 @@
 6 Nov, adopts stages from the corporate template (spec "Update 6 Nov"). Task 5 is rewritten: the org `rusuh-infra`
 already exists, and it is private.
 
-**Spec:** `rusuh-infra/docs/superpowers/specs/2026-11-04-shared-ci-cd-design.md`
+**Spec:** `rusuh-infra/ci-cd/docs/2026-11-04-shared-ci-cd-design.md`
+
+**Paths since 7 Nov:** everything for CI/CD except the workflows moved under `ci-cd/` (`docs/ci-cd.md` →
+`ci-cd/README.md`, `Makefile`, `examples/`, `tests/` → `ci-cd/…`, spec and plan → `ci-cd/docs/`), and `self-test.yml`
+became `cicd-self-test.yml`. Tasks 1–4b below keep the paths they were done with; Tasks 5–6 use the new ones.
 
 ## Global Constraints
 
@@ -202,10 +206,10 @@ already exists, and it is private.
   - `git remote add local ../rusuh-infra` (the local repo), `git fetch local`, then
     `git cherry-pick 247e426^..<Task 4b commit>`.
   - **Conflicts:**
-    - `README.md`: keep Backend 2's scaffold, and add a "CI/CD" section with links to `docs/ci-cd.md` and the spec;
+    - `README.md`: keep Backend 2's scaffold, and add a "CI/CD" section with links to `ci-cd/README.md` and the spec;
     - `.gitignore`: take the union.
   - Make sure `.superpowers/` stays untracked.
-  - `make lint`: exit 0.
+  - `make -C ci-cd lint`: exit 0.
 - [ ] **Step 3: Push and PR (with OK).**
   - Push `feature/shared-ci-cd` and open a PR into `main` whose description explains the pipeline, links the spec,
     and lists the required org settings.
@@ -217,7 +221,7 @@ already exists, and it is private.
     `CI_IMAGE_SCAN=on`, `CD_ECS=off`, `CD_K3S=off`.
 - [ ] **Step 5: Merge (after review).** Expected: the `main` self-test run is green.
 - [ ] **Step 6: Verify the push run.** `gh run watch` on the `main` self-test run. Expected: run green; switches summary lists every switch `on` and Node `vuln`/`extra` as "not configured"; fixture images pushed to GHCR.
-- [ ] **Step 7: Verify the negative cases.** `gh workflow run self-test.yml -f negative=true`.
+- [ ] **Step 7: Verify the negative cases.** `gh workflow run cicd-self-test.yml -f negative=true`.
   - Expected:
     - `bad-switch` fails with `CI_LINT` and `yes` in the error;
     - `cd-missing-config` fails, listing all six AWS variables;
@@ -233,7 +237,7 @@ already exists, and it is private.
 ### Task 6: Move `rusuh-queue` onto the shared pipeline
 
 **Files:**
-- Modify: `rusuh-queue/.github/workflows/ci.yml` (replace wholly with `examples/go-caller.yml` content)
+- Modify: `rusuh-queue/.github/workflows/ci.yml` (replace wholly with `ci-cd/examples/go-caller.yml` content)
 
 - [ ] **Step 1:** From `main` in `rusuh-queue`, create branch `ci/shared-pipeline`. Leave `Makefile`, `docs/`, `cmd/fakecore`, `api/.apidog` untouched.
 - [ ] **Step 2:** Replace `ci.yml` with the Go caller. `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/ci.yml` → exit 0.
@@ -246,5 +250,5 @@ already exists, and it is private.
   - If gosec or Trivy flag existing code, fix it in `rusuh-queue` in the same PR, or record an exclusion with its
     reason in the caller.
 - [ ] **Step 5: Verify override.** With OK, set repo variable `CI_VULN=off` on `rusuh-queue`, re-run: summary shows `CI_VULN off`, vuln step skipped. Delete the repo variable, re-run: back to `on`.
-- [ ] **Step 6:** Record the required check names (`ci / checks`, `ci / image`) in `rusuh-infra/docs/ci-cd.md`, commit `[INIT] | david | record required status checks`, push. With OK, set them as required in `rusuh-queue` branch protection for `main`.
+- [ ] **Step 6:** Record the required check names (`ci / checks`, `ci / image`) in `rusuh-infra/ci-cd/README.md`, commit `[INIT] | david | record required status checks`, push. With OK, set them as required in `rusuh-queue` branch protection for `main`.
 - [ ] **Step 7:** Capture in ngotak daily note: one line on what shipped and the check names.
