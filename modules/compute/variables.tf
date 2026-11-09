@@ -281,7 +281,7 @@ variable "admin_health_check_path" {
 variable "queue_path_patterns" {
   description = "ALB listener path patterns routed to the queue service (per-service routing, ADR-0017 /v1/ prefix)."
   type        = list(string)
-  default     = ["/v1/queue/*", "/v1/queue/devices"]
+  default     = ["/v1/queue/*"]
 }
 
 variable "core_path_patterns" {

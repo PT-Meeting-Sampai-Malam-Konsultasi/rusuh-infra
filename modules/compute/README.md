@@ -10,7 +10,7 @@ ECS cluster (Fargate) + ALB for the seven rusuh services:
 | notification | rusuh-core `apps/notification` | 8084 | (none — consumer-only) |
 | officer | rusuh-core `apps/officer` | 8085 | `/v1/officer/*` |
 | admin | rusuh-core `apps/admin` | 8086 | `/v1/admin/*` |
-| queue | rusuh-queue | (variable) | `/v1/queue/*`, `/v1/queue/devices` |
+| queue | rusuh-queue | (variable) | `/v1/queue/*` (covers `/v1/queue/devices`) |
 
 Resources:
 
