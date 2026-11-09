@@ -18,9 +18,9 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "ecs_security_group_id" {
-  description = "Security group of ECS tasks; the only group allowed to reach Postgres and Valkey (from the compute module)."
-  type        = string
+variable "ecs_security_group_ids" {
+  description = "Security groups of the ECS tasks; the only groups allowed to reach Postgres and Valkey (from the compute module, one per service)."
+  type        = list(string)
 }
 
 variable "db_name" {
@@ -90,9 +90,9 @@ variable "valkey_engine_version" {
 }
 
 variable "valkey_num_cache_clusters" {
-  description = "Number of Valkey cache clusters (1 = single node, no failover; demo default)."
+  description = "Number of Valkey cache clusters (2 = primary + replica with automatic failover; the queue relay uses WAIT 1, which needs a replica). Cost is 2x a single node."
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "valkey_transit_encryption_enabled" {

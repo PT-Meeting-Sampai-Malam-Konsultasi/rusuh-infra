@@ -12,11 +12,15 @@ resource "aws_security_group" "db" {
   description = "Postgres access from ECS tasks only"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [var.ecs_security_group_id]
+  dynamic "ingress" {
+    for_each = var.ecs_security_group_ids
+
+    content {
+      from_port       = 5432
+      to_port         = 5432
+      protocol        = "tcp"
+      security_groups = [ingress.value]
+    }
   }
 
   egress {
@@ -71,11 +75,15 @@ resource "aws_security_group" "valkey" {
   description = "Valkey access from ECS tasks only"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port       = 6379
-    to_port         = 6379
-    protocol        = "tcp"
-    security_groups = [var.ecs_security_group_id]
+  dynamic "ingress" {
+    for_each = var.ecs_security_group_ids
+
+    content {
+      from_port       = 6379
+      to_port         = 6379
+      protocol        = "tcp"
+      security_groups = [ingress.value]
+    }
   }
 
   egress {
@@ -90,18 +98,37 @@ resource "aws_security_group" "valkey" {
   }
 }
 
+# The default parameter group uses maxmemory-policy volatile-lru,
+# which silently evicts keys that have an expiry — every q:{evt}:*
+# key has one by design. noeviction fails writes loudly instead of
+# losing queue state (places, leases, counters).
+resource "aws_elasticache_parameter_group" "this" {
+  name   = "${var.project}-${var.environment}-valkey-noeviction"
+  family = "valkey7"
+
+  parameter {
+    name  = "maxmemory-policy"
+    value = "noeviction"
+  }
+
+  tags = {
+    Name = "${var.project}-${var.environment}-valkey-noeviction"
+  }
+}
+
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id = "${var.project}-${var.environment}-valkey"
-  description          = "Valkey for rusuh demo (stock, NIK quota, tickets, denylist, cap)"
+  description          = "Valkey for rusuh demo (queue state q:{evt}:*, core state core:*, booking stream, rate limits)"
 
   engine                     = "valkey"
   engine_version             = var.valkey_engine_version
   node_type                  = var.valkey_node_type
   num_cache_clusters         = var.valkey_num_cache_clusters
+  parameter_group_name       = aws_elasticache_parameter_group.this.name
   subnet_group_name          = aws_elasticache_subnet_group.this.name
   security_group_ids         = [aws_security_group.valkey.id]
-  automatic_failover_enabled = false
-  multi_az_enabled           = false
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
 
   # NOTE: auth_token requires transit_encryption_enabled = true (AWS API
   # constraint). Defaults (false/null) are consistent; set both together.
@@ -110,5 +137,30 @@ resource "aws_elasticache_replication_group" "this" {
 
   tags = {
     Name = "${var.project}-${var.environment}-valkey"
+  }
+}
+
+# Alarm on the primary node's memory usage. With noeviction, a full
+# node rejects writes instead of evicting, so memory pressure must be
+# visible before it becomes an outage. The primary node is
+# <replication_group_id>-001; the replica holds the same data, so its
+# usage tracks the primary.
+resource "aws_cloudwatch_metric_alarm" "valkey_memory" {
+  alarm_name          = "${var.project}-${var.environment}-valkey-memory"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "DatabaseMemoryUsagePercentage"
+  namespace           = "AWS/ElastiCache"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 85
+  alarm_description   = "Valkey primary node memory usage above 85% (noeviction: writes fail instead of evicting)"
+  dimensions = {
+    CacheClusterId = "${aws_elasticache_replication_group.this.id}-001"
+  }
+  treat_missing_data = "notBreaching"
+
+  tags = {
+    Name = "${var.project}-${var.environment}-valkey-memory"
   }
 }
