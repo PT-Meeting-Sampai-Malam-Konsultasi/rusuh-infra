@@ -26,3 +26,8 @@ terraform.rc
 *.tfstate.*
 .env
 .superpowers/
+
+# Exception: child-module lock files are NOT used by Terraform (only the
+# root module's lock matters), so standalone validation inside a module
+# dir must not pollute commits.
+modules/*/.terraform.lock.hcl

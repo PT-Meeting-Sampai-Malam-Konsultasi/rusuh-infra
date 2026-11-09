@@ -1,13 +1,19 @@
-# Modul: secrets
+# Module: secrets
 
-Secrets Manager untuk semua secret runtime.
+Secrets Manager for all runtime secrets — but this module only
+creates their SHELLs (secret resources without values).
 
-Ketentuan:
+Reason (a security principle, not a limitation): a secret value
+written in Terraform ends up stored in state in readable form —
+which is equivalent to putting the secret in the repo. Therefore:
 
-- Isi: Server Key Midtrans (backend-only, tidak pernah ke FE),
-  kredensial DB/Valkey, kunci JWT (Ed25519), dan secret service lain.
-- Tidak ada secret di repo, tfvars, atau state yang di-commit.
-  Aplikasi membaca secret saat runtime (bukan build time).
-- Rotasi secret mengikuti kebijakan tim (belum diputuskan).
+- Values are filled out-of-band by the owner (AWS console / CLI
+  `put-secret-value`), never via Terraform, tfvars, or chat.
+- Planned contents: Midtrans Server Key (backend-only), DB password,
+  Valkey token, JWT keys (Ed25519), and other service secrets.
+- Rotation policy not yet decided by the team.
 
-Status: belum diimplementasi.
+Two-step flow for ECS tasks: apply with `secrets = {}` first (or
+with the name list only) → fill values out-of-band → apply again
+with the secret ARNs in the compute module's `core_secrets`/
+`queue_secrets`.

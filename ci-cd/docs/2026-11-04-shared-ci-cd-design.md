@@ -175,7 +175,7 @@ jobs:
   ci:
     uses: PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-ci.yml@v1
     with:
-      service: rusuh-queue
+      service: msmk-queue
       runtime: go                 # go | node
       runtime-version-file: go.mod   # or .nvmrc / package.json
       setup: ''                   # e.g. "npm ci"
@@ -192,7 +192,7 @@ jobs:
     needs: ci
     uses: PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@v1
     with:
-      service: rusuh-queue
+      service: msmk-queue
       environment: production
     secrets: inherit
 ```
@@ -288,7 +288,7 @@ Variables needed (names are a proposal; the builder may rename and must document
 | `AWS_ROLE_ARN` | environment | role GitHub assumes via OIDC |
 | `ECR_REGISTRY` | org or environment | `<account>.dkr.ecr.ap-southeast-3.amazonaws.com` |
 | `ECS_CLUSTER` | environment | from Terraform |
-| `ECS_SERVICE` | repo + environment | e.g. `rusuh-queue` |
+| `ECS_SERVICE` | repo + environment | e.g. `msmk-demo-queue` |
 | `ECS_TASK_FAMILY` | repo + environment | from Terraform |
 | `ECS_CONTAINER` | repo + environment (optional) | defaults to `service` |
 
