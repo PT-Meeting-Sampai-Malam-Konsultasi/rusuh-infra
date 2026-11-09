@@ -46,6 +46,18 @@ output "certificate_validation_options" {
   value = module.dns.domain_validation_options
 }
 
+output "cloudfront_domain_name" {
+  value = module.edge.cloudfront_domain_name
+}
+
+output "cloudfront_distribution_id" {
+  value = module.edge.cloudfront_distribution_id
+}
+
+output "waf_acl_arn" {
+  value = module.edge.waf_acl_arn
+}
+
 output "dashboard_name" {
   value = module.observability.dashboard_name
 }

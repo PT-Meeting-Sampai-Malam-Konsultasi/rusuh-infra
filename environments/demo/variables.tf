@@ -89,8 +89,33 @@ variable "certificate_arn" {
   default     = ""
 }
 
+variable "auth_image" {
+  description = "Container image for service-auth. No default: from its CI build."
+  type        = string
+}
+
 variable "core_image" {
   description = "Container image for service-core. No default: from its CI build."
+  type        = string
+}
+
+variable "payment_image" {
+  description = "Container image for service-payment. No default: from its CI build."
+  type        = string
+}
+
+variable "notification_image" {
+  description = "Container image for service-notification. No default: from its CI build."
+  type        = string
+}
+
+variable "officer_image" {
+  description = "Container image for service-officer. No default: from its CI build."
+  type        = string
+}
+
+variable "admin_image" {
+  description = "Container image for service-admin. No default: from its CI build."
   type        = string
 }
 
@@ -99,9 +124,39 @@ variable "queue_image" {
   type        = string
 }
 
+variable "auth_port" {
+  description = "Container port of service-auth."
+  type        = number
+  default     = 8081
+}
+
 variable "core_port" {
   description = "Container port of service-core. No default: confirm with the service owner."
   type        = number
+}
+
+variable "payment_port" {
+  description = "Container port of service-payment."
+  type        = number
+  default     = 8083
+}
+
+variable "notification_port" {
+  description = "Container port of service-notification."
+  type        = number
+  default     = 8084
+}
+
+variable "officer_port" {
+  description = "Container port of service-officer."
+  type        = number
+  default     = 8085
+}
+
+variable "admin_port" {
+  description = "Container port of service-admin."
+  type        = number
+  default     = 8086
 }
 
 variable "queue_port" {
@@ -109,16 +164,28 @@ variable "queue_port" {
   type        = number
 }
 
-variable "health_check_path" {
-  description = "ALB health check path (assumption: confirm with service owners)."
+variable "acm_certificate_arn_us_east_1" {
+  description = "ACM certificate ARN for the API domain in us-east-1 (CloudFront custom domain). Empty = no custom domain on CloudFront yet."
   type        = string
-  default     = "/"
+  default     = ""
 }
 
-variable "queue_path_patterns" {
-  description = "ALB path patterns routed to the queue service."
-  type        = list(string)
-  default     = ["/api/queue/*"]
+variable "edge_origin_protocol_policy" {
+  description = "Protocol CloudFront uses to the ALB origin. https-only requires the ALB HTTPS listener (certificate_arn set and validated)."
+  type        = string
+  default     = "https-only"
+}
+
+variable "waf_rate_limit" {
+  description = "WAF rate-based rule: max requests per 5 minutes per IP."
+  type        = number
+  default     = 10000
+}
+
+variable "edge_price_class" {
+  description = "CloudFront price class (PriceClass_200 includes Asia)."
+  type        = string
+  default     = "PriceClass_200"
 }
 
 variable "db_password" {
@@ -127,8 +194,38 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "auth_secrets" {
+  description = "service-auth secrets: env var name -> Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
 variable "core_secrets" {
   description = "service-core secrets: env var name -> Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "payment_secrets" {
+  description = "service-payment secrets: env var name -> Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "notification_secrets" {
+  description = "service-notification secrets: env var name -> Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "officer_secrets" {
+  description = "service-officer secrets: env var name -> Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "admin_secrets" {
+  description = "service-admin secrets: env var name -> Secrets Manager ARN."
   type        = map(string)
   default     = {}
 }
@@ -139,8 +236,32 @@ variable "queue_secrets" {
   default     = {}
 }
 
+variable "auth_extra_environment" {
+  description = "Extra env vars for service-auth (merged over the standard ones)."
+  type        = map(string)
+  default     = {}
+}
+
 variable "core_extra_environment" {
   description = "Extra env vars for service-core (merged over the standard ones)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "payment_extra_environment" {
+  description = "Extra env vars for service-payment (merged over the standard ones)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "officer_extra_environment" {
+  description = "Extra env vars for service-officer (merged over the standard ones)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "admin_extra_environment" {
+  description = "Extra env vars for service-admin (merged over the standard ones)."
   type        = map(string)
   default     = {}
 }

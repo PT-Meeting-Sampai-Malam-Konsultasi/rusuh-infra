@@ -50,15 +50,32 @@ module "dns" {
   api_domain  = var.api_domain
 }
 
+module "edge" {
+  source = "../../modules/edge"
+
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  project                       = var.project
+  environment                   = var.environment
+  alb_dns_name                  = module.compute.alb_dns_name
+  api_domain                    = var.api_domain
+  acm_certificate_arn_us_east_1 = var.acm_certificate_arn_us_east_1
+  origin_protocol_policy        = var.edge_origin_protocol_policy
+  waf_rate_limit                = var.waf_rate_limit
+  price_class                   = var.edge_price_class
+}
+
 module "data" {
   source = "../../modules/data"
 
-  project               = var.project
-  environment           = var.environment
-  vpc_id                = module.network.vpc_id
-  private_subnet_ids    = module.network.private_subnet_ids
-  ecs_security_group_id = module.compute.ecs_security_group_id
-  db_password           = var.db_password
+  project                = var.project
+  environment            = var.environment
+  vpc_id                 = module.network.vpc_id
+  private_subnet_ids     = module.network.private_subnet_ids
+  ecs_security_group_ids = values(module.compute.ecs_security_group_ids)
+  db_password            = var.db_password
 }
 
 module "compute" {
@@ -75,14 +92,22 @@ module "compute" {
   ecs_subnet_ids   = module.network.public_subnet_ids
   assign_public_ip = true
 
-  core_image  = var.core_image
-  queue_image = var.queue_image
-  core_port   = var.core_port
-  queue_port  = var.queue_port
+  auth_image         = var.auth_image
+  core_image         = var.core_image
+  payment_image      = var.payment_image
+  notification_image = var.notification_image
+  officer_image      = var.officer_image
+  admin_image        = var.admin_image
+  queue_image        = var.queue_image
+  auth_port          = var.auth_port
+  core_port          = var.core_port
+  payment_port       = var.payment_port
+  notification_port  = var.notification_port
+  officer_port       = var.officer_port
+  admin_port         = var.admin_port
+  queue_port         = var.queue_port
 
-  health_check_path   = var.health_check_path
-  queue_path_patterns = var.queue_path_patterns
-  certificate_arn     = var.certificate_arn
+  certificate_arn = var.certificate_arn
 
   db_address  = module.data.db_address
   db_port     = module.data.db_port
@@ -96,9 +121,18 @@ module "compute" {
   s3_bucket_arn              = module.storage.bucket_arn
   ses_domain                 = var.ses_domain
   ses_identity_arn           = module.email.identity_arn
+  auth_secrets               = var.auth_secrets
   core_secrets               = var.core_secrets
+  payment_secrets            = var.payment_secrets
+  notification_secrets       = var.notification_secrets
+  officer_secrets            = var.officer_secrets
+  admin_secrets              = var.admin_secrets
   queue_secrets              = var.queue_secrets
+  auth_extra_environment     = var.auth_extra_environment
   core_extra_environment     = var.core_extra_environment
+  payment_extra_environment  = var.payment_extra_environment
+  officer_extra_environment  = var.officer_extra_environment
+  admin_extra_environment    = var.admin_extra_environment
   queue_extra_environment    = var.queue_extra_environment
 }
 
