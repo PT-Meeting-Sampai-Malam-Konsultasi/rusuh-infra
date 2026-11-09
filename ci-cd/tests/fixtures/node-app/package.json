@@ -1,0 +1,10 @@
+{
+  "name": "node-app",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "lint": "node --check index.js",
+    "test": "node --test"
+  }
+}

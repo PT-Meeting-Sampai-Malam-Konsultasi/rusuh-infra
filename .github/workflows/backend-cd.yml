@@ -1,0 +1,230 @@
+name: backend-cd
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: production
+      switch-overrides:
+        type: string
+        default: ''
+      ecs-service:
+        type: string
+        default: ''
+      ecs-task-family:
+        type: string
+        default: ''
+      ecs-container:
+        type: string
+        default: ''
+      smoke-url:
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ inputs.service }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  switches:
+    runs-on: ubuntu-latest
+    outputs:
+      ecs: ${{ steps.resolve.outputs.CD_ECS }}
+      k3s: ${{ steps.resolve.outputs.CD_K3S }}
+      image: ${{ steps.resolve.outputs.image }}
+      release: ${{ steps.resolve.outputs.release }}
+    steps:
+      - id: resolve
+        env:
+          CD_ECS: ${{ vars.CD_ECS }}
+          CD_K3S: ${{ vars.CD_K3S }}
+          OVERRIDES: ${{ inputs.switch-overrides }}
+          SERVICE: ${{ inputs.service }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          bad=0
+          self_test=false
+          [[ -n "${OVERRIDES:-}" && "${GITHUB_REPOSITORY#*/}" == rusuh-infra ]] && self_test=true
+          if [[ "$GITHUB_REF_TYPE" != tag && "$self_test" != true ]]; then
+            echo "::error::CD runs only for a release tag, got $GITHUB_REF_TYPE $GITHUB_REF_NAME"
+            bad=1
+          fi
+          if [[ ! "$SERVICE" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "::error::service must be a lowercase image name, got '$SERVICE'"
+            bad=1
+          fi
+          [[ -n "${OVERRIDES:-}" ]] || OVERRIDES='{}'
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$SERVICE:$GITHUB_SHA"
+          {
+            echo "image=$image"
+            echo "release=$GITHUB_REF_NAME"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### CD for \`$SERVICE\` to \`$ENVIRONMENT\`"
+            echo
+            echo "| Switch | Value |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for name in CD_ECS CD_K3S; do
+            value=$(jq -r --arg k "$name" '.[$k] // empty' <<<"$OVERRIDES")
+            [[ -n "$value" ]] || value=${!name:-off}
+            if [[ "$value" != on && "$value" != off ]]; then
+              echo "::error::$name must be 'on' or 'off', got '$value'"
+              bad=1
+            fi
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+            echo "| \`$name\` | $value |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit "$bad"
+
+  promote-ecr:
+    needs: switches
+    if: needs.switches.outputs.ecs == 'on'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ inputs['ecs-service'] || vars.ECS_SERVICE }}
+      ECS_TASK_FAMILY: ${{ inputs['ecs-task-family'] || vars.ECS_TASK_FAMILY }}
+      SOURCE: ${{ needs.switches.outputs.image }}
+      RELEASE: ${{ needs.switches.outputs.release }}
+      SERVICE: ${{ inputs.service }}
+    steps:
+      - name: check-config
+        run: |
+          missing=()
+          for name in AWS_REGION AWS_ROLE_ARN ECR_REGISTRY ECS_CLUSTER ECS_SERVICE ECS_TASK_FAMILY; do
+            [[ -n "${!name}" ]] || missing+=("$name")
+          done
+          if (( ${#missing[@]} )); then
+            echo "::error::missing variables: ${missing[*]}"
+            exit 1
+          fi
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: imjasonh/setup-crane@v0.4
+      - name: copy image
+        run: |
+          target="$ECR_REGISTRY/$SERVICE:$GITHUB_SHA"
+          crane copy "$SOURCE" "$target"
+          crane tag "$target" "$RELEASE"
+          echo "Copied \`$SOURCE\` to \`$target\` and tagged \`$RELEASE\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-ecs:
+    needs: [switches, promote-ecr]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      smoke: ${{ steps.smoke.outputs.result }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ECS_TASK_FAMILY: ${{ inputs['ecs-task-family'] || vars.ECS_TASK_FAMILY }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: current task definition
+        run: |
+          aws ecs describe-task-definition --task-definition "$ECS_TASK_FAMILY" --query taskDefinition \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > task-def.json
+      - id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.json
+          container-name: ${{ inputs['ecs-container'] || vars.ECS_CONTAINER }}
+          image: ${{ vars.ECR_REGISTRY }}/${{ inputs.service }}:${{ github.sha }}
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          service: ${{ inputs['ecs-service'] || vars.ECS_SERVICE }}
+          wait-for-service-stability: true
+      - id: smoke
+        name: smoke check
+        env:
+          SMOKE_URL: ${{ inputs['smoke-url'] || vars.SMOKE_URL }}
+        run: |
+          if [[ -z "${SMOKE_URL:-}" ]]; then
+            echo "result=not configured" >> "$GITHUB_OUTPUT"
+            echo "Smoke check: not configured (set SMOKE_URL on the environment)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if curl -fsS -o /dev/null --max-time 10 --retry 10 --retry-delay 6 --retry-all-errors "$SMOKE_URL"; then
+            echo "result=passed ($SMOKE_URL)" >> "$GITHUB_OUTPUT"
+            echo "Smoke check: \`$SMOKE_URL\` answered 2xx" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "result=failed ($SMOKE_URL)" >> "$GITHUB_OUTPUT"
+            echo "::error::smoke check failed: $SMOKE_URL did not answer 2xx after 10 retries"
+            exit 1
+          fi
+
+  deploy-k3s:
+    needs: switches
+    if: needs.switches.outputs.k3s == 'on'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::k3s deploy is not implemented yet; set CD_K3S=off"
+          exit 1
+
+  summary:
+    needs: [switches, promote-ecr, deploy-ecs, deploy-k3s]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SERVICE: ${{ inputs.service }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          RELEASE: ${{ needs.switches.outputs.release }}
+          IMAGE: ${{ needs.switches.outputs.image }}
+          ECS: ${{ needs.switches.outputs.ecs }}
+          K3S: ${{ needs.switches.outputs.k3s }}
+          ECS_RESULT: ${{ needs.deploy-ecs.result }}
+          K3S_RESULT: ${{ needs.deploy-k3s.result }}
+          SMOKE: ${{ needs.deploy-ecs.outputs.smoke }}
+        run: |
+          {
+            if [[ "$ECS" != on && "$K3S" != on ]]; then
+              echo "### Dry run: nothing deployed"
+            else
+              echo "### Release"
+            fi
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Service | \`$SERVICE\` |"
+            echo "| Release | \`$RELEASE\` |"
+            echo "| Commit | \`$GITHUB_SHA\` |"
+            echo "| Image | \`$IMAGE\` |"
+            echo "| Environment | \`$ENVIRONMENT\` |"
+            echo "| ECS | ${ECS:-unknown} ($ECS_RESULT) |"
+            echo "| Smoke check | ${SMOKE:-not run} |"
+            echo "| k3s | ${K3S:-unknown} ($K3S_RESULT) |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-ci.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      service: rusuh-queue
+      runtime: go
+      runtime-version-file: go.mod
+      format: make fmt-check
+      lint: |
+        go vet ./...
+        make lint
+      vuln: make vuln
+      test: go test -race -coverprofile=coverage.out ./...
+      sast: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -severity high -exclude-dir=_mock ./...
+      coverage: go tool cover -func=coverage.out | tail -1
+      extra: |
+        if [[ -f sqlc.yaml ]]; then
+          make sqlc
+          git diff --exit-code -- internal/
+        fi
+
+  cd:
+    needs: ci
+    if: github.ref_type == 'tag'
+    uses: PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@v1
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    with:
+      service: rusuh-queue
+      environment: production
+      ecs-container: queue

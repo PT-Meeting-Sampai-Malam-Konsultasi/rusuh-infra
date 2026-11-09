@@ -1,0 +1,110 @@
+name: cicd-self-test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      negative:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  go:
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-go
+      runtime: go
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/go-app
+      format: test -z "$(gofmt -l .)"
+      lint: go vet ./...
+      vuln: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      test: go test -race ./...
+      extra: go build ./...
+      sast: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -severity high -exclude-dir=_mock ./...
+      coverage: go test -coverprofile=c.out ./... > /dev/null && go tool cover -func=c.out | tail -1
+
+  node:
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-node
+      runtime: node
+      runtime-version-file: ci-cd/tests/fixtures/node-app/.nvmrc
+      working-directory: ci-cd/tests/fixtures/node-app
+      setup: npm ci
+      lint: npm run lint
+      test: npm test
+
+  bad-switch:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-go
+      runtime: go
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/go-app
+      test: go test ./...
+      switch-overrides: '{"CI_LINT":"yes"}'
+
+  bad-dockerfile:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-bad-dockerfile
+      runtime: go
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/bad-dockerfile
+
+  leaky:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-leaky
+      runtime: go
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/leaky
+      switch-overrides: '{"CI_IMAGE":"off"}'
+
+  vulnerable-image:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-vulnerable
+      runtime: go
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/vulnerable-image
+      switch-overrides: '{"CI_LINT":"off"}'
+
+  bad-tag:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      service: rusuh-ci-fixture-go
+      runtime: go
+      runtime-version-file: ci-cd/tests/fixtures/go-app/go.mod
+      working-directory: ci-cd/tests/fixtures/go-app
+      release-tag: v1.2.3-rc1
+
+  cd-dry-run:
+    if: github.ref_type == 'tag'
+    needs: go
+    uses: ./.github/workflows/backend-cd.yml
+    with:
+      service: rusuh-ci-fixture-go
+      switch-overrides: '{"CD_ECS":"off","CD_K3S":"off"}'
+
+  cd-missing-config:
+    if: inputs.negative
+    uses: ./.github/workflows/backend-cd.yml
+    with:
+      service: rusuh-ci-fixture-go
+      environment: self-test
+      switch-overrides: '{"CD_ECS":"on"}'
