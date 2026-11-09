@@ -1,20 +1,20 @@
-# Modul: network
+# Module: network
 
-VPC + subnets + routing untuk satu environment.
+VPC + subnets + routing for one environment.
 
-Desain (demo):
+Demo design:
 
-- VPC `10.0.0.0/16`, 2 AZ (`ap-southeast-3a`, `ap-southeast-3b`).
-- Public subnets: ALB + ECS demo (dengan security group ketat).
-- Private subnets: data (RDS, Valkey) — tanpa rute internet.
-- Internet Gateway + route tables public/private.
+- VPC `10.0.0.0/16`, 2 AZs (`ap-southeast-3a`, `ap-southeast-3b`).
+- Public subnets: ALB + demo ECS (with tight security groups).
+- Private subnets: data (RDS, Valkey) — no internet route.
+- Internet Gateway + public/private route tables.
 
-Keputusan biaya (ditulis eksplisit, bukan diam-diam): NAT Gateway
-**nonaktif secara default** (`enable_nat_gateway = false`) karena
-biayanya ~$30+/bulan per gateway dan demo tidak membutuhkannya selama
-ECS berjalan di public subnet. Konsekuensi: task ECS di private subnet
-tidak bisa outbound (pull image, SES, dsb.) sampai NAT diaktifkan.
-Aktifkan NAT + pindahkan ECS ke private subnet sebagai item hardening
-untuk production (atau bila demo membutuhkan ECS private).
+Cost decision (written explicitly, not silently): the NAT Gateway is
+**off by default** (`enable_nat_gateway = false`) because it costs
+~$30+/month per gateway and the demo does not need it while ECS runs
+in public subnets. Consequence: ECS tasks in private subnets cannot
+reach outbound (image pull, SES, etc.) until NAT is enabled. Enable
+NAT + move ECS to private subnets as a production hardening item
+(or if the demo needs private ECS).
 
-Status: diimplementasi di feature branch `feature/terraform-foundation`.
+Status: implemented on feature branch `feature/terraform-foundation`.

@@ -1,58 +1,66 @@
 # rusuh-infra
 
-Infrastructure-as-code untuk rusuh (tiket booking): semua environment
-didefinisikan dengan Terraform di repo ini, terpisah dari repo aplikasi
-(`rusuh-core`, `rusuh-queue`, `rusuh-mock`) dan repo dokumentasi
-(`rusuh-documentation`).
+Infrastructure-as-code for rusuh (ticket booking): all environments
+are defined with Terraform in this repo, separate from the application
+repos (`rusuh-core`, `rusuh-queue`, `rusuh-mock`) and the documentation
+repo (`rusuh-documentation`).
 
-Platform: AWS region Jakarta (`ap-southeast-3`) — sesuai ADR-0012 di repo
-dokumentasi. Terraform `>= 1.5`, AWS provider `~> 5.0`.
+Platform: AWS Jakarta region (`ap-southeast-3`) — per ADR-0012 in the
+documentation repo. Terraform `>= 1.5`, AWS provider `~> 5.0`.
 
-## Arsitektur (ringkas)
+## Architecture (summary)
 
-- Web: Cloudflare Pages (tim FE, Wrangler).
-- API: ALB → ECS (service-core Node.js + service-queue Go). CloudFront di
-  depan API bersifat opsional (keputusan tim masih terbuka); jalur
-  ALB-direct adalah yang berlaku sampai diputuskan lain.
-- Data: RDS PostgreSQL + ElastiCache Valkey (cluster bersama queue + core,
-  namespace `queue:*`, `stock:*`, `nik:*`, `ticket:*`, `denylist:*`,
-  `cap:*`).
-- Async: SQS + DLQ (notifikasi dkk).
-- Email: SES (production access; email bawaan Midtrans dipertimbangkan
-  nonaktif supaya hanya email SES yang terkirim).
-- Storage: S3 untuk PDF e-tiket (akses via presigned URL).
-- Secret: Secrets Manager (Server Key Midtrans, kredensial DB/Valkey, kunci
-  JWT). Tidak ada secret di repo ini.
-- Observabilitas: CloudWatch + X-Ray (OTel ditunda — Q40).
-- Domain: `rusuh-tiket.web.id` + `api.rusuh-tiket.web.id` (SSL via ACM —
-  saat ini belum ada, bagian dari modul `dns`).
+- Web: Cloudflare Pages (FE team, Wrangler).
+- API: CloudFront → ALB → ECS (seven services: auth, core, payment,
+  notification, officer, admin from rusuh-core, plus queue from
+  rusuh-queue). CloudFront caches `/v1/queue/{evt}/frontier` for 1 s
+  (ADR-0015) and puts a WAF in front of the API; the rest is
+  pass-through. The `api` DNS record points at the CloudFront
+  domain, not directly at the ALB.
+- Data: RDS PostgreSQL + ElastiCache Valkey (primary + replica with
+  automatic failover; one cluster shared by queue + core, namespaces
+  `q:{evt}:*`, `core:*`, `stream:booking`, `rl:*`).
+- Async: SQS + DLQ (notifications, etc.).
+- Email: SES (production access; built-in Midtrans emails are being
+  considered for disabling so only SES emails are sent).
+- Storage: S3 for e-ticket PDFs (access via presigned URL).
+- Secrets: Secrets Manager (Midtrans Server Key, DB/Valkey credentials,
+  JWT keys). No secrets in this repo.
+- Observability: CloudWatch + X-Ray (OTel deferred — Q40; the queue
+  service exports OTLP to an ADOT sidecar, core logs to CloudWatch).
+- Domains: `rusuh-tiket.web.id` + `api.rusuh-tiket.web.id` (SSL via ACM —
+  not yet present, part of the `dns` module; the CloudFront custom
+  domain needs a separate certificate in us-east-1, see the edge
+  module README).
 
-## Checklist provisioning (Q25)
+## Provisioning checklist (Q25)
 
 | Item | Status |
 | --- | --- |
-| VPC + subnets + routing | Modul `network` (feature `feature/terraform-foundation`) |
-| RDS PostgreSQL | Modul `data` — belum diimplementasi |
-| ElastiCache Valkey | Modul `data` — belum diimplementasi |
-| SQS + DLQ | Modul `messaging` — belum diimplementasi |
-| SES production access | Modul `email` — belum diimplementasi |
-| S3 (e-tiket) | Modul `storage` — belum diimplementasi |
-| Secrets Manager | Modul `secrets` — belum diimplementasi |
-| ECS + ALB | Modul `compute` — belum diimplementasi |
-| Domain + ACM/SSL | Modul `dns` — belum diimplementasi |
-| CloudWatch (+ X-Ray) | Modul `observability` — belum diimplementasi |
+| VPC + subnets + routing | Module `network` — implemented |
+| RDS PostgreSQL | Module `data` — implemented |
+| ElastiCache Valkey | Module `data` — implemented |
+| SQS + DLQ | Module `messaging` — implemented |
+| SES (identity + DKIM) | Module `email` — implemented (production access remains a manual step) |
+| S3 (e-ticket) | Module `storage` — implemented |
+| Secrets Manager | Module `secrets` — implemented (shells only, no values) |
+| ECS + ALB | Module `compute` — implemented (7 services) |
+| CloudFront + WAF | Module `edge` — implemented (distribution + Web ACL; custom domain needs a us-east-1 ACM certificate, TBD) |
+| Domain + ACM/SSL | Module `dns` — implemented (certificate; manual DNS validation) |
+| CloudWatch (alarms + dashboard) | Module `observability` — implemented |
 
-Target: seluruh infra siap untuk evaluasi 13 November 2026. Evaluasi itu
-satu kesempatan — tidak ada fase "nanti" untuk infra inti.
+Target: all infra ready for the 13 November 2026 evaluation. That
+evaluation is a one-shot opportunity — there is no "later" phase for
+core infra.
 
-## Struktur
+## Layout
 
 ```
-bootstrap/            # Sekali jalan, local state: bucket state S3 + tabel lock DynamoDB
+bootstrap/            # One-time, local state: S3 state bucket + DynamoDB lock table
 environments/
-  demo/               # Environment evaluasi 13 Nov (root module: network + modul berikutnya)
+  demo/               # 13 Nov evaluation environment (root module: network + further modules)
 modules/
-  network/            # VPC, subnets, IGW, route tables, NAT opsional
+  network/            # VPC, subnets, IGW, route tables, optional NAT
   data/               # RDS + ElastiCache Valkey
   compute/            # ECS + ALB
   messaging/          # SQS + DLQ
@@ -60,48 +68,52 @@ modules/
   storage/            # S3
   secrets/            # Secrets Manager
   dns/                # ACM + DNS records
+  edge/               # CloudFront + WAF in front of the ALB
   observability/      # CloudWatch (+ X-Ray)
 ```
 
-## Alur branch (aturan repo ini)
+## Branch flow (repo rules)
 
-- `main` = state yang sudah direview. Satu-satunya commit langsung ke
-  `main` adalah inisiasi repo ini (scaffold).
-- Semua pekerjaan fitur lewat **feature branch + review (PR) dulu**,
-  tidak pernah commit fitur langsung ke `main`.
+- `main` = reviewed state. The only commit made directly to `main`
+  is this repo's initiation (scaffold).
+- All feature work goes through a **feature branch + review (PR)
+  first**, never a feature commit directly to `main`.
 
 ## Backend state & bootstrap
 
-State Terraform disimpan remote (S3 + lock DynamoDB) — bukan local state
-di mesin masing-masing. Urutan pertama kali:
+Terraform state is stored remotely (S3 + DynamoDB lock) — not local
+state on individual machines. First-time order:
 
 1. `cd bootstrap && terraform init && terraform apply`
-   (local state; catat output `state_bucket_name` dan `lock_table_name`).
+   (local state; note the `state_bucket_name` and `lock_table_name`
+   outputs).
 2. `cd environments/demo && terraform init \
      -backend-config="bucket=<state_bucket_name>" \
      -backend-config="key=rusuh/demo/terraform.tfstate" \
      -backend-config="region=ap-southeast-3" \
      -backend-config="dynamodb_table=<lock_table_name>"`
-3. `terraform plan` → periksa → `terraform apply`.
+3. `terraform plan` → review → `terraform apply`.
 
-Backend di `environments/demo/backend.tf` sengaja ditulis sebagai partial
-configuration (tanpa nama bucket hardcoded) supaya tidak ada nama bucket
-yang ditebak-tebak di repo.
+The backend in `environments/demo/backend.tf` is intentionally a
+partial configuration (no hardcoded bucket name) so no bucket name
+is guessed in the repo.
 
-## Konvensi
+## Conventions
 
-- Region: `ap-southeast-3` (Jakarta) untuk semua resource, kecuali ACM
-  bila suatu hari memakai CloudFront (saat itu wajib `us-east-1`).
-- Penamaan: `rusuh-<env>-<nama>`. Tag wajib: `Project=rusuh`,
+- Region: `ap-southeast-3` (Jakarta) for all resources, except
+  CloudFront-scoped resources (WAFv2 Web ACL, ACM for the CloudFront
+  custom domain) — those are `us-east-1` (mandatory).
+- Naming: `rusuh-<env>-<name>`. Mandatory tags: `Project=rusuh`,
   `Environment=<env>`, `ManagedBy=terraform`.
-- Secret tidak pernah masuk repo, tfvars, atau state yang di-commit.
-  File `*.tfvars` di-ignore; yang boleh di-commit hanya
-  `*.example.tfvars`.
-- `.terraform.lock.hcl` sengaja DI-COMMIT (reproducibility).
-- Biaya adalah constraint presentasi, proper adalah tujuan (prinsip tim):
-  pilihan hemat yang mengurangi ketahanan (mis. NAT off, single-AZ)
-  harus ditulis alasannya di README modul yang bersangkutan, dan
-  ditandai sebagai item hardening pasca-evaluasi bila relevan.
+- Secrets never enter the repo, tfvars, or committed state.
+  `*.tfvars` files are ignored; only `*.example.tfvars` may be
+  committed.
+- `.terraform.lock.hcl` is intentionally COMMITTED (reproducibility).
+- Cost is a presentation constraint; proper is the goal (team
+  principle): cheap choices that reduce resilience (e.g. NAT off,
+  single-AZ) must have their reasons written in the relevant module
+  README, and be flagged as post-evaluation hardening items where
+  relevant.
 
 ## CI/CD (shared pipeline)
 
@@ -124,3 +136,24 @@ The workflows themselves stay in `.github/workflows/` because GitHub only runs r
 
 This repo is public so the public backend repos can call its workflows. Like the Terraform, it never holds secrets,
 state or account values.
+
+## ECS Exec (operator access)
+
+All ECS services have `enable_execute_command = true` and the task
+role has the SSM session permissions, so an operator can get a shell
+inside a running task during the evaluation (there is no bastion):
+
+```sh
+aws ecs execute-command \
+  --cluster rusuh-demo-cluster \
+  --task <task-id> \
+  --container core \
+  --interactive \
+  --command "/bin/sh"
+```
+
+List tasks first with `aws ecs list-tasks --cluster
+rusuh-demo-cluster --service-name rusuh-demo-core-service`. The
+session is logged to CloudWatch (`/ecs/rusuh-demo-<service>`). The
+queue service's admin port stays private — it is not exposed through
+the ALB; reach it via Service Connect or ECS Exec.
