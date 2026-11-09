@@ -44,3 +44,4 @@ jobs:
     with:
       service: rusuh-queue
       environment: production
+      ecs-container: queue

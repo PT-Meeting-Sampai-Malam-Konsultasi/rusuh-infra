@@ -9,7 +9,7 @@ Two reusable workflows that every Rusuh backend calls:
 - `.github/workflows/backend-ci.yml`: checks, image build and the release check.
 - `.github/workflows/backend-cd.yml`: copies the release image to ECR and deploys it.
 
-Design and reasons: [`superpowers/specs/2026-11-04-shared-ci-cd-design.md`](superpowers/specs/2026-11-04-shared-ci-cd-design.md).
+Design and reasons: [`docs/2026-11-04-shared-ci-cd-design.md`](docs/2026-11-04-shared-ci-cd-design.md).
 
 ## Plug a repo in
 
@@ -18,6 +18,18 @@ Design and reasons: [`superpowers/specs/2026-11-04-shared-ci-cd-design.md`](supe
 3. Open a PR. The run summary lists every switch and which commands are configured.
 
 Callers pin `@v1`. `v1` moves to the newest `v1.x.y` release of this repo.
+
+### Monorepo
+
+A repo with more than one service (rusuh-core has six apps) cannot use one
+caller per repo: the CI builds one image per call and the CD deploys one
+service per call. Use one caller file with a matrix over the apps
+([`examples/node-monorepo-caller.yml`](examples/node-monorepo-caller.yml)):
+each matrix entry sets the image name, the workspace package, the Dockerfile
+(`apps/<app>/Dockerfile`, built from the repo root as context) and the
+per-service CD values (`ecs-service`, `ecs-task-family`, `ecs-container`).
+The shared values (`AWS_REGION`, `AWS_ROLE_ARN`, `ECR_REGISTRY`,
+`ECS_CLUSTER`) still come from vars.
 
 ## What runs when
 
@@ -45,6 +57,8 @@ Image: `ghcr.io/pt-meeting-sampai-malam-konsultasi/<service>:<full commit sha>`,
 | `runtime` | yes | | `go` or `node` |
 | `runtime-version-file` | yes | | path from repo root, e.g. `go.mod`, `.nvmrc` |
 | `working-directory` | no | `.` | where commands run and the Docker build context |
+| `dockerfile` | no | `Dockerfile` | path to the Dockerfile, relative to the repo root |
+| `context` | no | `working-directory` | Docker build context; when empty, falls back to `working-directory` |
 | `setup` | no | empty | e.g. `npm ci` |
 | `format` | no | empty | runs with the `CI_LINT` switch |
 | `lint` | no | empty | runs with the `CI_LINT` switch |
@@ -67,6 +81,16 @@ The caller grants `contents: read, packages: write` to the CI job.
 | --- | --- | --- |
 | `service` | yes | |
 | `environment` | no | `production` |
+| `ecs-service` | no | `ECS_SERVICE` var |
+| `ecs-task-family` | no | `ECS_TASK_FAMILY` var |
+| `ecs-container` | no | `ECS_CONTAINER` var |
+| `smoke-url` | no | `SMOKE_URL` var |
+
+Each of these falls back to the GitHub Actions variable of the same name when
+the input is empty. `ecs-container` is required in practice for our services:
+the container names in Terraform are the short names (`auth`, `core`, `queue`,
+…), not the image names (`rusuh-auth`, `rusuh-core`, …), so pass it as an
+input or set the var — the old default of the service name does not match.
 
 The caller grants `contents: read, packages: read, id-token: write` to the CD job.
 
@@ -100,6 +124,11 @@ A switched-off stage is skipped, never failed.
 
 Set on the GitHub Environment named by `environment` (e.g. `production`) in each backend repo, or at the org when shared.
 
+`ECS_SERVICE`, `ECS_TASK_FAMILY`, `ECS_CONTAINER` and `SMOKE_URL` are
+per-service: pass them as inputs to the CD job (monorepo/matrix callers) or
+set them as vars (single-service callers). The rest (`AWS_REGION`,
+`AWS_ROLE_ARN`, `ECR_REGISTRY`, `ECS_CLUSTER`) are shared per environment.
+
 | Variable | Example |
 | --- | --- |
 | `AWS_REGION` | `ap-southeast-3` |
@@ -119,7 +148,7 @@ The tag check in `backend-cd.yml` stops honest mistakes, not a determined collab
 
 1. In each backend repo, the `production` environment's deployment policy allows only tags matching `v*`.
 2. A tag ruleset limits who can create `v*` tags.
-3. The IAM role's OIDC trust policy is pinned to `token.actions.githubusercontent.com:sub = repo:PT-Meeting-Sampai-Malam-Konsultasi/<repo>:environment:production`, and `job_workflow_ref` to `PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@refs/tags/v1`.
+3. The IAM role's OIDC trust policy is pinned to `token.actions.githubusercontent.com:sub` = the rusuh-core and rusuh-queue repos in the `production` environment (`repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-core:environment:production`, `repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-queue:environment:production`), and `job_workflow_ref` to `PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@refs/tags/v1`.
 
 Fork PRs get no `id-token` and a read-only token, so they cannot push images or reach AWS.
 

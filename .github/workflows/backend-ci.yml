@@ -15,6 +15,12 @@ on:
       working-directory:
         type: string
         default: .
+      dockerfile:
+        type: string
+        default: Dockerfile
+      context:
+        type: string
+        default: ''
       setup:
         type: string
         default: ''
@@ -153,11 +159,11 @@ jobs:
       - name: dockerfile
         if: needs.switches.outputs.lint == 'on'
         run: |
-          if [[ ! -f Dockerfile ]]; then
-            echo "Dockerfile lint: no Dockerfile" >> "$GITHUB_STEP_SUMMARY"
+          if [[ ! -f "${{ inputs.dockerfile }}" ]]; then
+            echo "Dockerfile lint: no Dockerfile at ${{ inputs.dockerfile }}" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          docker run --rm -i ghcr.io/hadolint/hadolint:v2.15.1 hadolint --failure-threshold warning - < Dockerfile
+          docker run --rm -i ghcr.io/hadolint/hadolint:v2.15.1 hadolint --failure-threshold warning - < "${{ inputs.dockerfile }}"
           echo "Dockerfile lint (hadolint): clean" >> "$GITHUB_STEP_SUMMARY"
       - if: inputs.runtime == 'go'
         uses: actions/setup-go@v5
@@ -214,7 +220,8 @@ jobs:
         if: needs.switches.outputs.image-scan == 'on'
         uses: docker/build-push-action@v6
         with:
-          context: ${{ inputs.working-directory }}
+          context: ${{ inputs.context != '' && inputs.context || inputs.working-directory }}
+          file: ${{ inputs.dockerfile }}
           platforms: linux/amd64
           load: true
           tags: ${{ needs.switches.outputs.image-ref }}
@@ -235,7 +242,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: ${{ inputs.working-directory }}
+          context: ${{ inputs.context != '' && inputs.context || inputs.working-directory }}
+          file: ${{ inputs.dockerfile }}
           platforms: ${{ inputs.platforms }}
           push: ${{ env.PUSH == 'true' }}
           tags: ${{ needs.switches.outputs.image-ref }}

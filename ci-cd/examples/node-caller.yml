@@ -35,3 +35,4 @@ jobs:
     with:
       service: rusuh-core
       environment: production
+      ecs-container: core

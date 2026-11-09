@@ -12,6 +12,18 @@ on:
       switch-overrides:
         type: string
         default: ''
+      ecs-service:
+        type: string
+        default: ''
+      ecs-task-family:
+        type: string
+        default: ''
+      ecs-container:
+        type: string
+        default: ''
+      smoke-url:
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -87,8 +99,8 @@ jobs:
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
       ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
       ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
-      ECS_SERVICE: ${{ vars.ECS_SERVICE }}
-      ECS_TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY }}
+      ECS_SERVICE: ${{ inputs['ecs-service'] || vars.ECS_SERVICE }}
+      ECS_TASK_FAMILY: ${{ inputs['ecs-task-family'] || vars.ECS_TASK_FAMILY }}
       SOURCE: ${{ needs.switches.outputs.image }}
       RELEASE: ${{ needs.switches.outputs.release }}
       SERVICE: ${{ inputs.service }}
@@ -131,7 +143,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      ECS_TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY }}
+      ECS_TASK_FAMILY: ${{ inputs['ecs-task-family'] || vars.ECS_TASK_FAMILY }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -146,18 +158,18 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-def.json
-          container-name: ${{ vars.ECS_CONTAINER || inputs.service }}
+          container-name: ${{ inputs['ecs-container'] || vars.ECS_CONTAINER }}
           image: ${{ vars.ECR_REGISTRY }}/${{ inputs.service }}:${{ github.sha }}
       - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render.outputs.task-definition }}
           cluster: ${{ vars.ECS_CLUSTER }}
-          service: ${{ vars.ECS_SERVICE }}
+          service: ${{ inputs['ecs-service'] || vars.ECS_SERVICE }}
           wait-for-service-stability: true
       - id: smoke
         name: smoke check
         env:
-          SMOKE_URL: ${{ vars.SMOKE_URL }}
+          SMOKE_URL: ${{ inputs['smoke-url'] || vars.SMOKE_URL }}
         run: |
           if [[ -z "${SMOKE_URL:-}" ]]; then
             echo "result=not configured" >> "$GITHUB_OUTPUT"
