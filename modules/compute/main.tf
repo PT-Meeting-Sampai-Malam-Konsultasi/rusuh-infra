@@ -960,9 +960,10 @@ resource "aws_ecr_lifecycle_policy" "queue" {
 }
 
 # GitHub OIDC provider (account-wide) + deploy role for the backend CD
-# workflow. Trust is restricted to the production environment of the
-# rusuh-infra backend-cd workflow on a v1 tag — no other repo, branch,
-# or workflow can assume this role.
+# workflow. Trust is restricted to the rusuh-core and rusuh-queue repos
+# calling the rusuh-infra backend-cd reusable workflow on a v1 tag, in
+# the production environment — no other repo, branch, or workflow can
+# assume this role.
 resource "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
 
@@ -990,7 +991,10 @@ resource "aws_iam_role" "deploy" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            "token.actions.githubusercontent.com:sub"              = "repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra:environment:production"
+            "token.actions.githubusercontent.com:sub" = [
+              "repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-core:environment:production",
+              "repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-queue:environment:production",
+            ]
             "token.actions.githubusercontent.com:job_workflow_ref" = "PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@refs/tags/v1"
           }
         }
