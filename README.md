@@ -11,21 +11,27 @@ documentation repo. Terraform `>= 1.5`, AWS provider `~> 5.0`.
 ## Architecture (summary)
 
 - Web: Cloudflare Pages (FE team, Wrangler).
-- API: ALB → ECS (service-core Node.js + service-queue Go). CloudFront
-  in front of the API is optional (team decision still open); the
-  ALB-direct path applies until decided otherwise.
-- Data: RDS PostgreSQL + ElastiCache Valkey (one cluster shared by queue
-  + core, namespaces `queue:*`, `stock:*`, `nik:*`, `ticket:*`,
-  `denylist:*`, `cap:*`).
+- API: CloudFront → ALB → ECS (seven services: auth, core, payment,
+  notification, officer, admin from rusuh-core, plus queue from
+  rusuh-queue). CloudFront caches `/v1/queue/{evt}/frontier` for 1 s
+  (ADR-0015) and puts a WAF in front of the API; the rest is
+  pass-through. The `api` DNS record points at the CloudFront
+  domain, not directly at the ALB.
+- Data: RDS PostgreSQL + ElastiCache Valkey (primary + replica with
+  automatic failover; one cluster shared by queue + core, namespaces
+  `q:{evt}:*`, `core:*`, `stream:booking`, `rl:*`).
 - Async: SQS + DLQ (notifications, etc.).
 - Email: SES (production access; built-in Midtrans emails are being
   considered for disabling so only SES emails are sent).
 - Storage: S3 for e-ticket PDFs (access via presigned URL).
 - Secrets: Secrets Manager (Midtrans Server Key, DB/Valkey credentials,
   JWT keys). No secrets in this repo.
-- Observability: CloudWatch + X-Ray (OTel deferred — Q40).
+- Observability: CloudWatch + X-Ray (OTel deferred — Q40; the queue
+  service exports OTLP to an ADOT sidecar, core logs to CloudWatch).
 - Domains: `rusuh-tiket.web.id` + `api.rusuh-tiket.web.id` (SSL via ACM —
-  not yet present, part of the `dns` module).
+  not yet present, part of the `dns` module; the CloudFront custom
+  domain needs a separate certificate in us-east-1, see the edge
+  module README).
 
 ## Provisioning checklist (Q25)
 
@@ -38,7 +44,8 @@ documentation repo. Terraform `>= 1.5`, AWS provider `~> 5.0`.
 | SES (identity + DKIM) | Module `email` — implemented (production access remains a manual step) |
 | S3 (e-ticket) | Module `storage` — implemented |
 | Secrets Manager | Module `secrets` — implemented (shells only, no values) |
-| ECS + ALB | Module `compute` — implemented |
+| ECS + ALB | Module `compute` — implemented (7 services) |
+| CloudFront + WAF | Module `edge` — implemented (distribution + Web ACL; custom domain needs a us-east-1 ACM certificate, TBD) |
 | Domain + ACM/SSL | Module `dns` — implemented (certificate; manual DNS validation) |
 | CloudWatch (alarms + dashboard) | Module `observability` — implemented |
 
@@ -61,6 +68,7 @@ modules/
   storage/            # S3
   secrets/            # Secrets Manager
   dns/                # ACM + DNS records
+  edge/               # CloudFront + WAF in front of the ALB
   observability/      # CloudWatch (+ X-Ray)
 ```
 
@@ -92,8 +100,9 @@ is guessed in the repo.
 
 ## Conventions
 
-- Region: `ap-southeast-3` (Jakarta) for all resources, except ACM
-  if CloudFront is ever used (then `us-east-1` is mandatory).
+- Region: `ap-southeast-3` (Jakarta) for all resources, except
+  CloudFront-scoped resources (WAFv2 Web ACL, ACM for the CloudFront
+  custom domain) — those are `us-east-1` (mandatory).
 - Naming: `rusuh-<env>-<name>`. Mandatory tags: `Project=rusuh`,
   `Environment=<env>`, `ManagedBy=terraform`.
 - Secrets never enter the repo, tfvars, or committed state.
@@ -105,3 +114,24 @@ is guessed in the repo.
   single-AZ) must have their reasons written in the relevant module
   README, and be flagged as post-evaluation hardening items where
   relevant.
+
+## ECS Exec (operator access)
+
+All ECS services have `enable_execute_command = true` and the task
+role has the SSM session permissions, so an operator can get a shell
+inside a running task during the evaluation (there is no bastion):
+
+```sh
+aws ecs execute-command \
+  --cluster rusuh-demo-cluster \
+  --task <task-id> \
+  --container core \
+  --interactive \
+  --command "/bin/sh"
+```
+
+List tasks first with `aws ecs list-tasks --cluster
+rusuh-demo-cluster --service-name rusuh-demo-core-service`. The
+session is logged to CloudWatch (`/ecs/rusuh-demo-<service>`). The
+queue service's admin port stays private — it is not exposed through
+the ALB; reach it via Service Connect or ECS Exec.
