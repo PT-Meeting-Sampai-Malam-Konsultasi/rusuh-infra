@@ -103,7 +103,7 @@ is guessed in the repo.
 - Region: `ap-southeast-3` (Jakarta) for all resources, except
   CloudFront-scoped resources (WAFv2 Web ACL, ACM for the CloudFront
   custom domain) — those are `us-east-1` (mandatory).
-- Naming: `rusuh-<env>-<name>`. Mandatory tags: `Project=rusuh`,
+- Naming: `msmk-<env>-<name>`. Mandatory tags: `Project=msmk`,
   `Environment=<env>`, `ManagedBy=terraform`.
 - Secrets never enter the repo, tfvars, or committed state.
   `*.tfvars` files are ignored; only `*.example.tfvars` may be
@@ -145,7 +145,7 @@ inside a running task during the evaluation (there is no bastion):
 
 ```sh
 aws ecs execute-command \
-  --cluster rusuh-demo-cluster \
+  --cluster msmk-demo-cluster \
   --task <task-id> \
   --container core \
   --interactive \
@@ -153,7 +153,7 @@ aws ecs execute-command \
 ```
 
 List tasks first with `aws ecs list-tasks --cluster
-rusuh-demo-cluster --service-name rusuh-demo-core-service`. The
-session is logged to CloudWatch (`/ecs/rusuh-demo-<service>`). The
+msmk-demo-cluster --service-name msmk-demo-core-service`. The
+session is logged to CloudWatch (`/ecs/msmk-demo-<service>`). The
 queue service's admin port stays private — it is not exposed through
 the ALB; reach it via Service Connect or ECS Exec.

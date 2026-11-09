@@ -1,7 +1,7 @@
 variable "project" {
   description = "Project name used in resource tags and the lock table name."
   type        = string
-  default     = "rusuh"
+  default     = "msmk"
 }
 
 variable "region" {

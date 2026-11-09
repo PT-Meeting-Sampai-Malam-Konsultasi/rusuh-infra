@@ -13,4 +13,4 @@ Rules:
   objects remain — data protection. Set to true only if the team
   understands the consequence.
 - `bucket_name` has no default: bucket names are globally unique;
-  suggested pattern `rusuh-demo-etiket-<aws-account-id>`.
+  suggested pattern `msmk-demo-etiket-<aws-account-id>`.

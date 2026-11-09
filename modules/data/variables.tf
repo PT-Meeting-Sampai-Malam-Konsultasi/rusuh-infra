@@ -26,13 +26,13 @@ variable "ecs_security_group_ids" {
 variable "db_name" {
   description = "Postgres database name."
   type        = string
-  default     = "rusuh"
+  default     = "msmk"
 }
 
 variable "db_username" {
   description = "Postgres master username (not secret by itself; the password is)."
   type        = string
-  default     = "rusuh_app"
+  default     = "msmk_app"
 }
 
 variable "db_password" {

@@ -38,11 +38,11 @@ Resources:
   Connect, never the public ALB. The public ALB must not be used for
   service-to-service traffic.
 - Fargate task definitions + services, CloudWatch log groups
-  (`/ecs/rusuh-demo-<service>`). Log groups intentionally live in
+  (`/ecs/msmk-demo-<service>`). Log groups intentionally live in
   this module (tied to the task definitions), not in the
   observability module — observability holds only alarms +
   dashboard.
-- ECR repository per service (`rusuh-<service>`, scan on push,
+- ECR repository per service (`msmk-<service>`, scan on push,
   lifecycle policy keeps the 10 most recent images). The CD pipeline
   copies the release image from GHCR into ECR, then updates the ECS
   service.

@@ -736,7 +736,7 @@ resource "aws_lb_listener_rule" "admin_https" {
 # GHCR into the matching repository, then updates the ECS service
 # (see the deploy role below and ci-cd/README.md).
 resource "aws_ecr_repository" "auth" {
-  name                 = "rusuh-auth"
+  name                 = "${var.project}-auth"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -749,7 +749,7 @@ resource "aws_ecr_repository" "auth" {
 }
 
 resource "aws_ecr_repository" "core" {
-  name                 = "rusuh-core"
+  name                 = "${var.project}-core"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -762,7 +762,7 @@ resource "aws_ecr_repository" "core" {
 }
 
 resource "aws_ecr_repository" "payment" {
-  name                 = "rusuh-payment"
+  name                 = "${var.project}-payment"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -775,7 +775,7 @@ resource "aws_ecr_repository" "payment" {
 }
 
 resource "aws_ecr_repository" "notification" {
-  name                 = "rusuh-notification"
+  name                 = "${var.project}-notification"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -788,7 +788,7 @@ resource "aws_ecr_repository" "notification" {
 }
 
 resource "aws_ecr_repository" "officer" {
-  name                 = "rusuh-officer"
+  name                 = "${var.project}-officer"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -801,7 +801,7 @@ resource "aws_ecr_repository" "officer" {
 }
 
 resource "aws_ecr_repository" "admin" {
-  name                 = "rusuh-admin"
+  name                 = "${var.project}-admin"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -814,7 +814,7 @@ resource "aws_ecr_repository" "admin" {
 }
 
 resource "aws_ecr_repository" "queue" {
-  name                 = "rusuh-queue"
+  name                 = "${var.project}-queue"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {

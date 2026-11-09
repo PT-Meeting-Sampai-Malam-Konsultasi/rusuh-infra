@@ -484,9 +484,9 @@ variable "container_insights_enabled" {
 }
 
 variable "service_connect_namespace" {
-  description = "Cloud Map HTTP namespace for ECS Service Connect (private service-to-service calls, e.g. core.rusuh.local)."
+  description = "Cloud Map HTTP namespace for ECS Service Connect (private service-to-service calls, e.g. core.msmk.local)."
   type        = string
-  default     = "rusuh.local"
+  default     = "msmk.local"
 }
 
 variable "autoscaling_min_capacity" {

@@ -26,4 +26,4 @@ them as `-backend-config` when running `terraform init` in
   resources can be `import`ed back (there is no application data in
   it, only the state infrastructure itself).
 - Bucket names must be globally unique across all AWS accounts.
-  Suggested pattern: `rusuh-tfstate-<aws-account-id>`.
+  Suggested pattern: `msmk-tfstate-<aws-account-id>`.
