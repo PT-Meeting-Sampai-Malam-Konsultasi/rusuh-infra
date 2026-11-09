@@ -221,7 +221,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.context != '' && inputs.context || inputs.working-directory }}
-          file: ${{ inputs.dockerfile }}
+          file: ${{ format('{0}/{1}', inputs.context != '' && inputs.context || inputs.working-directory, inputs.dockerfile) }}
           platforms: linux/amd64
           load: true
           tags: ${{ needs.switches.outputs.image-ref }}
@@ -243,7 +243,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.context != '' && inputs.context || inputs.working-directory }}
-          file: ${{ inputs.dockerfile }}
+          file: ${{ format('{0}/{1}', inputs.context != '' && inputs.context || inputs.working-directory, inputs.dockerfile) }}
           platforms: ${{ inputs.platforms }}
           push: ${{ env.PUSH == 'true' }}
           tags: ${{ needs.switches.outputs.image-ref }}
