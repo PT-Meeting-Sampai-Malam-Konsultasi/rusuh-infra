@@ -26,9 +26,9 @@ variable "acm_certificate_arn_us_east_1" {
 }
 
 variable "origin_protocol_policy" {
-  description = "Protocol CloudFront uses to the ALB origin. https-only requires the ALB HTTPS listener (compute certificate_arn set); use http-only only before the certificate is validated."
+  description = "Protocol CloudFront uses to the ALB origin. Must match the ALB listener: https-only only when the ALB has an HTTPS listener (compute certificate_arn set); http-only while the ALB is HTTP-only. The demo root derives this from certificate_arn so it can never be inconsistent."
   type        = string
-  default     = "https-only"
+  default     = "http-only"
 
   validation {
     condition     = contains(["http-only", "https-only", "match-viewer"], var.origin_protocol_policy)

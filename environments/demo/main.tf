@@ -62,9 +62,14 @@ module "edge" {
   alb_dns_name                  = module.compute.alb_dns_name
   api_domain                    = var.api_domain
   acm_certificate_arn_us_east_1 = var.acm_certificate_arn_us_east_1
-  origin_protocol_policy        = var.edge_origin_protocol_policy
-  waf_rate_limit                = var.waf_rate_limit
-  price_class                   = var.edge_price_class
+  # Derived from the ALB certificate, not a free variable: the ALB only
+  # has an HTTPS listener when certificate_arn is set, so CloudFront must
+  # use http-only until then (https-only with no listener = 502). When a
+  # certificate is supplied the ALB gains the HTTPS listener and the
+  # origin switches to https-only automatically.
+  origin_protocol_policy = var.certificate_arn != "" ? "https-only" : "http-only"
+  waf_rate_limit         = var.waf_rate_limit
+  price_class            = var.edge_price_class
 }
 
 module "data" {

@@ -170,12 +170,6 @@ variable "acm_certificate_arn_us_east_1" {
   default     = ""
 }
 
-variable "edge_origin_protocol_policy" {
-  description = "Protocol CloudFront uses to the ALB origin. https-only requires the ALB HTTPS listener (certificate_arn set and validated)."
-  type        = string
-  default     = "https-only"
-}
-
 variable "waf_rate_limit" {
   description = "WAF rate-based rule: max requests per 5 minutes per IP."
   type        = number
