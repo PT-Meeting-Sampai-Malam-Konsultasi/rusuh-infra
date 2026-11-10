@@ -18,11 +18,6 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "ecs_security_group_ids" {
-  description = "Security groups of the ECS tasks; the only groups allowed to reach Postgres and Valkey (from the compute module, one per service)."
-  type        = list(string)
-}
-
 variable "db_name" {
   description = "Postgres database name."
   type        = string
@@ -66,15 +61,15 @@ variable "db_backup_retention_period" {
 }
 
 variable "db_multi_az" {
-  description = "RDS Multi-AZ (off for demo cost; enable for production hardening)."
+  description = "RDS Multi-AZ (production: synchronous standby in another AZ, automatic failover). Off only for a short-lived throwaway environment."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "db_deletion_protection" {
-  description = "RDS deletion protection (off for demo iteration; enable for production)."
+  description = "RDS deletion protection (production: the database cannot be deleted accidentally; disable explicitly to tear down)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "valkey_node_type" {
@@ -96,7 +91,7 @@ variable "valkey_num_cache_clusters" {
 }
 
 variable "valkey_transit_encryption_enabled" {
-  description = "Valkey in-transit encryption (off for demo; requires client TLS when on)."
+  description = "Valkey in-transit encryption. OFF by default: do not enable until the clients are verified TLS-compatible (rusuh-core must use a rediss:// VALKEY_URL, rusuh-queue (Go) must enable TLS in its Valkey client). Enabling it before the clients support TLS breaks their Valkey connections."
   type        = bool
   default     = false
 }

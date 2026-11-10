@@ -41,9 +41,9 @@ variable "private_subnet_cidrs" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Create a NAT Gateway for private subnets (off by default: ~$30+/month; see modules/network/README.md)."
+  description = "Create a NAT Gateway per AZ for private subnets (production: on). ~$32/month per gateway plus data processing. Off only for a short-lived throwaway environment."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "queues" {
@@ -170,6 +170,11 @@ variable "acm_certificate_arn_us_east_1" {
   default     = ""
 }
 
+variable "alarm_email" {
+  description = "Email address that receives CloudWatch alarm notifications via SNS. Required (no default): enterprise readiness needs a mandatory alert endpoint. The recipient must confirm the SNS subscription after apply."
+  type        = string
+}
+
 variable "waf_rate_limit" {
   description = "WAF rate-based rule: max requests per 5 minutes per IP."
   type        = number
@@ -182,10 +187,29 @@ variable "edge_price_class" {
   default     = "PriceClass_200"
 }
 
+variable "db_username" {
+  description = "Postgres master username. Passed to both the data module (creates the user) and the compute module (builds DATABASE_URL), so they always agree."
+  type        = string
+  default     = "msmk_app"
+}
+
 variable "db_password" {
   description = "Postgres master password. No default: supply via tfvars (gitignored), never commit."
   type        = string
   sensitive   = true
+}
+
+variable "valkey_transit_encryption_enabled" {
+  description = "Valkey in-transit encryption. OFF by default until the clients are verified TLS-compatible. Passed to both the data module (creates the cluster) and the compute module (chooses rediss:// vs redis:// for VALKEY_URL), so they always agree."
+  type        = bool
+  default     = false
+}
+
+variable "valkey_auth_token" {
+  description = "Valkey AUTH token. Only set together with valkey_transit_encryption_enabled = true (AWS constraint). Passed to both the data module (sets the cluster token) and the compute module (embeds it in VALKEY_URL / VALKEY_PASSWORD), so they always agree."
+  type        = string
+  sensitive   = true
+  default     = null
 }
 
 variable "auth_secrets" {

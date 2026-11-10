@@ -320,6 +320,44 @@ variable "certificate_arn" {
   default     = ""
 }
 
+variable "db_security_group_id" {
+  description = "Security group ID of Postgres (from the data module). The compute module creates the ingress rules on it, so the data module never needs the ECS security groups."
+  type        = string
+  default     = ""
+}
+
+variable "valkey_security_group_id" {
+  description = "Security group ID of Valkey (from the data module). The compute module creates the ingress rules on it."
+  type        = string
+  default     = ""
+}
+
+variable "db_username" {
+  description = "Postgres username for the DATABASE_URL (must match the data module's db_username)."
+  type        = string
+  default     = "msmk_app"
+}
+
+variable "db_password" {
+  description = "Postgres password for the DATABASE_URL. Sensitive: it is embedded in the DATABASE_URL env var (visible in the ECS console and Terraform state). Moving it to Secrets Manager is the RDS-managed-password follow-up."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "valkey_transit_encryption_enabled" {
+  description = "Whether Valkey uses in-transit encryption (must match the data module). Chooses rediss:// vs redis:// for VALKEY_URL."
+  type        = bool
+  default     = false
+}
+
+variable "valkey_auth_token" {
+  description = "Valkey AUTH token (must match the data module's valkey_auth_token). Only set together with transit encryption (AWS constraint). Embedded in VALKEY_URL / passed as VALKEY_PASSWORD to the queue."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
 variable "db_address" {
   description = "Postgres host (from the data module)."
   type        = string

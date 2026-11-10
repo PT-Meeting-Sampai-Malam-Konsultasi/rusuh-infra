@@ -190,7 +190,7 @@ locals {
     queue   = { security_group_id = aws_security_group.queue.id, port = var.queue_port }
   }
 
-  # All service security groups (used for egress and for the data module).
+  # All service security groups (used for egress and for the DB/Valkey ingress rules below).
   service_security_group_ids = {
     auth         = aws_security_group.auth.id
     core         = aws_security_group.core.id
@@ -263,6 +263,36 @@ resource "aws_security_group_rule" "core_to_payment" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.core.id
   description              = "core to payment: start a payment"
+}
+
+# Ingress to the data layer, owned here (not in the data module). The data
+# module creates the DB/Valkey security groups but no ingress rules, so it
+# never needs the ECS security groups as an input — the dependency is
+# one-way (compute -> data) and no cycle can form. Access is the same as
+# before: every ECS service group may reach Postgres (5432) and Valkey
+# (6379); tightening that per service is a separate change.
+resource "aws_security_group_rule" "db_ingress" {
+  for_each = var.db_security_group_id != "" ? local.service_security_group_ids : {}
+
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = var.db_security_group_id
+  source_security_group_id = each.value
+  description              = "ECS ${each.key} to Postgres"
+}
+
+resource "aws_security_group_rule" "valkey_ingress" {
+  for_each = var.valkey_security_group_id != "" ? local.service_security_group_ids : {}
+
+  type                     = "ingress"
+  from_port                = 6379
+  to_port                  = 6379
+  protocol                 = "tcp"
+  security_group_id        = var.valkey_security_group_id
+  source_security_group_id = each.value
+  description              = "ECS ${each.key} to Valkey"
 }
 
 resource "aws_service_discovery_http_namespace" "this" {
@@ -737,7 +767,7 @@ resource "aws_lb_listener_rule" "admin_https" {
 # (see the deploy role below and ci-cd/README.md).
 resource "aws_ecr_repository" "auth" {
   name                 = "${var.project}-auth"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -750,7 +780,7 @@ resource "aws_ecr_repository" "auth" {
 
 resource "aws_ecr_repository" "core" {
   name                 = "${var.project}-core"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -763,7 +793,7 @@ resource "aws_ecr_repository" "core" {
 
 resource "aws_ecr_repository" "payment" {
   name                 = "${var.project}-payment"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -776,7 +806,7 @@ resource "aws_ecr_repository" "payment" {
 
 resource "aws_ecr_repository" "notification" {
   name                 = "${var.project}-notification"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -789,7 +819,7 @@ resource "aws_ecr_repository" "notification" {
 
 resource "aws_ecr_repository" "officer" {
   name                 = "${var.project}-officer"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -802,7 +832,7 @@ resource "aws_ecr_repository" "officer" {
 
 resource "aws_ecr_repository" "admin" {
   name                 = "${var.project}-admin"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -815,7 +845,7 @@ resource "aws_ecr_repository" "admin" {
 
 resource "aws_ecr_repository" "queue" {
   name                 = "${var.project}-queue"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -1054,7 +1084,7 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
-        Resource = [aws_iam_role.execution.arn, aws_iam_role.task.arn]
+        Resource = concat([aws_iam_role.execution.arn], [for r in aws_iam_role.task : r.arn])
       },
     ]
   })
@@ -1122,8 +1152,39 @@ resource "aws_iam_role_policy" "execution" {
   })
 }
 
+# Per-service task roles (Tier 2: least privilege). Each service gets its
+# own role, so a compromise or misconfiguration in one service cannot use
+# another service's AWS permissions. The split, by design:
+# - Every service: its OWN log group only, X-Ray, ECS Exec (SSM messages).
+# - SQS: notification + queue CONSUME (receive/delete); auth/core/payment/
+#   officer/admin only SEND (they enqueue work for notification/queue).
+# - SES: notification only (the sole email sender).
+# - S3: core + payment only (e-ticket files).
+# If a service later needs a permission it does not have, add it to its
+# branch below (one line) instead of widening the shared role.
+locals {
+  task_services = ["auth", "core", "payment", "notification", "officer", "admin", "queue"]
+
+  # Services that consume from SQS (receive + delete). The rest only send.
+  sqs_consumer_services = toset(["notification", "queue"])
+  # Services that read/write e-ticket files in S3.
+  s3_services = toset(["core", "payment"])
+
+  task_log_group_arns = {
+    auth         = aws_cloudwatch_log_group.auth.arn
+    core         = aws_cloudwatch_log_group.core.arn
+    payment      = aws_cloudwatch_log_group.payment.arn
+    notification = aws_cloudwatch_log_group.notification.arn
+    officer      = aws_cloudwatch_log_group.officer.arn
+    admin        = aws_cloudwatch_log_group.admin.arn
+    queue        = aws_cloudwatch_log_group.queue.arn
+  }
+}
+
 resource "aws_iam_role" "task" {
-  name = "${var.project}-${var.environment}-ecs-task"
+  for_each = toset(local.task_services)
+
+  name = "${var.project}-${var.environment}-ecs-task-${each.key}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -1135,30 +1196,24 @@ resource "aws_iam_role" "task" {
   })
 
   tags = {
-    Name = "${var.project}-${var.environment}-ecs-task"
+    Name = "${var.project}-${var.environment}-ecs-task-${each.key}"
   }
 }
 
 resource "aws_iam_role_policy" "task" {
-  name = "${var.project}-${var.environment}-ecs-task"
-  role = aws_iam_role.task.id
+  for_each = toset(local.task_services)
+
+  name = "${var.project}-${var.environment}-ecs-task-${each.key}"
+  role = aws_iam_role.task[each.key].id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
       [
         {
-          Effect = "Allow"
-          Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
-          Resource = [
-            "${aws_cloudwatch_log_group.auth.arn}:*",
-            "${aws_cloudwatch_log_group.core.arn}:*",
-            "${aws_cloudwatch_log_group.payment.arn}:*",
-            "${aws_cloudwatch_log_group.notification.arn}:*",
-            "${aws_cloudwatch_log_group.officer.arn}:*",
-            "${aws_cloudwatch_log_group.admin.arn}:*",
-            "${aws_cloudwatch_log_group.queue.arn}:*",
-          ]
+          Effect   = "Allow"
+          Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+          Resource = ["${local.task_log_group_arns[each.key]}:*"]
         },
         {
           Effect   = "Allow"
@@ -1186,15 +1241,15 @@ resource "aws_iam_role_policy" "task" {
       ],
       length(var.sqs_queue_arns) > 0 ? [{
         Effect   = "Allow"
-        Action   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+        Action   = contains(local.sqs_consumer_services, each.key) ? ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"] : ["sqs:SendMessage", "sqs:GetQueueAttributes"]
         Resource = var.sqs_queue_arns
       }] : [],
-      var.s3_bucket_arn != "" ? [{
+      var.s3_bucket_arn != "" && contains(local.s3_services, each.key) ? [{
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = ["${var.s3_bucket_arn}/*"]
       }] : [],
-      var.ses_identity_arn != "" ? [{
+      var.ses_identity_arn != "" && each.key == "notification" ? [{
         Effect   = "Allow"
         Action   = ["ses:SendEmail", "ses:SendRawEmail"]
         Resource = [var.ses_identity_arn]
@@ -1214,13 +1269,45 @@ locals {
     values(var.queue_secrets),
   )
 
-  base_environment = {
-    DB_HOST     = var.db_address
-    DB_PORT     = tostring(var.db_port)
-    DB_NAME     = var.db_name
-    VALKEY_HOST = var.valkey_host
-    VALKEY_PORT = tostring(var.valkey_port)
-  }
+  # Connection URLs the apps actually read. The old base_environment
+  # (DB_HOST/DB_PORT/DB_NAME/VALKEY_HOST/VALKEY_PORT) was read by NO
+  # service: the Node apps read DATABASE_URL/VALKEY_URL (URIs) and the Go
+  # queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. So the
+  # Terraform-provided vars never reached the apps and they fell back to
+  # in-memory stores. These locals build the URLs the apps read.
+  #
+  # DATABASE_URL embeds the password (urlencode handles @ : / % etc.).
+  # It is a plain env var, so the password is visible in the ECS console
+  # and Terraform state — moving it to Secrets Manager is the
+  # RDS-managed-password follow-up, not this change.
+  database_url = var.db_password != null ? "postgres://${var.db_username}:${urlencode(var.db_password)}@${var.db_address}:${var.db_port}/${var.db_name}" : null
+
+  # VALKEY_URL scheme follows the cluster: a token forces rediss://
+  # (AWS requires transit encryption with an auth token); TLS without a
+  # token is rediss://; otherwise redis://. ioredis (Node) enables TLS
+  # automatically on rediss://, no code change needed.
+  valkey_url = (
+    var.valkey_auth_token != null
+    ? "rediss://:${urlencode(var.valkey_auth_token)}@${var.valkey_host}:${var.valkey_port}"
+    : var.valkey_transit_encryption_enabled
+    ? "rediss://${var.valkey_host}:${var.valkey_port}"
+    : "redis://${var.valkey_host}:${var.valkey_port}"
+  )
+
+  # Node services (auth/core/payment/notification/officer/admin) read
+  # these two URIs. DATABASE_URL is omitted when no password is given
+  # (the app then uses its in-memory store).
+  node_environment = merge(
+    var.db_password != null ? { DATABASE_URL = local.database_url } : {},
+    { VALKEY_URL = local.valkey_url },
+  )
+
+  # Go queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. It does
+  # not use Postgres, so it deliberately gets no DATABASE_URL.
+  queue_valkey_environment = merge(
+    { VALKEY_ADDR = "${var.valkey_host}:${var.valkey_port}" },
+    var.valkey_auth_token != null ? { VALKEY_PASSWORD = var.valkey_auth_token } : {},
+  )
 
   shared_optional_environment = merge(
     var.sqs_notification_queue_url != "" ? { SQS_NOTIFICATION_URL = var.sqs_notification_queue_url } : {},
@@ -1229,43 +1316,43 @@ locals {
   )
 
   auth_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.auth_extra_environment,
   )
 
   core_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.core_extra_environment,
   )
 
   payment_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.payment_extra_environment,
   )
 
   notification_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.notification_extra_environment,
   )
 
   officer_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.officer_extra_environment,
   )
 
   admin_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.admin_extra_environment,
   )
 
   queue_environment = merge(
-    local.base_environment,
+    local.queue_valkey_environment,
     local.shared_optional_environment,
     # ADOT sidecar (same task, localhost): queue exports OTLP to it.
     { OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317" },
@@ -1280,7 +1367,7 @@ resource "aws_ecs_task_definition" "auth" {
   cpu                      = tostring(var.auth_cpu)
   memory                   = tostring(var.auth_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["auth"].arn
 
   container_definitions = jsonencode([
     {
@@ -1316,7 +1403,7 @@ resource "aws_ecs_task_definition" "core" {
   cpu                      = tostring(var.core_cpu)
   memory                   = tostring(var.core_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["core"].arn
 
   container_definitions = jsonencode([
     {
@@ -1352,7 +1439,7 @@ resource "aws_ecs_task_definition" "payment" {
   cpu                      = tostring(var.payment_cpu)
   memory                   = tostring(var.payment_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["payment"].arn
 
   container_definitions = jsonencode([
     {
@@ -1388,7 +1475,7 @@ resource "aws_ecs_task_definition" "notification" {
   cpu                      = tostring(var.notification_cpu)
   memory                   = tostring(var.notification_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["notification"].arn
 
   container_definitions = jsonencode([
     {
@@ -1424,7 +1511,7 @@ resource "aws_ecs_task_definition" "officer" {
   cpu                      = tostring(var.officer_cpu)
   memory                   = tostring(var.officer_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["officer"].arn
 
   container_definitions = jsonencode([
     {
@@ -1460,7 +1547,7 @@ resource "aws_ecs_task_definition" "admin" {
   cpu                      = tostring(var.admin_cpu)
   memory                   = tostring(var.admin_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["admin"].arn
 
   container_definitions = jsonencode([
     {
@@ -1496,7 +1583,7 @@ resource "aws_ecs_task_definition" "queue" {
   cpu                      = tostring(var.queue_cpu)
   memory                   = tostring(var.queue_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["queue"].arn
 
   container_definitions = jsonencode([
     {
@@ -1523,8 +1610,10 @@ resource "aws_ecs_task_definition" "queue" {
       # localhost:4317/4318 and exports to X-Ray + CloudWatch using
       # the image's default ECS config. Not essential: if the
       # collector stops, the queue keeps serving (spans are dropped).
-      name        = "adot"
-      image       = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      name = "adot"
+      # Pinned (not :latest): a floating tag can silently change what is
+      # deployed. Bump deliberately after verifying the new version.
+      image       = "public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0"
       essential   = false
       stopTimeout = 30
       portMappings = [

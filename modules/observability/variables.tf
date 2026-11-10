@@ -58,6 +58,17 @@ variable "alarm_5xx_evaluation_periods" {
   default     = 1
 }
 
+variable "enable_cloudtrail" {
+  description = "Create a dedicated multi-region CloudTrail for this environment (opt-in, default off). The account already has the baseline trail soldev-lz-trail; enabling this duplicates its events and cost, so only enable if this environment needs its own trail."
+  type        = bool
+  default     = false
+}
+
+variable "alarm_email" {
+  description = "Email address that receives CloudWatch alarm notifications via SNS. Required: enterprise readiness needs a mandatory alert endpoint. The recipient must confirm the SNS subscription (AWS sends a confirmation email after apply) or no notifications are delivered."
+  type        = string
+}
+
 variable "dashboard_name" {
   description = "CloudWatch dashboard name. Empty = <project>-<environment>-overview."
   type        = string

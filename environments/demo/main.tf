@@ -3,6 +3,7 @@ module "network" {
 
   project              = var.project
   environment          = var.environment
+  region               = var.region
   vpc_cidr             = var.vpc_cidr
   availability_zones   = var.availability_zones
   public_subnet_cidrs  = var.public_subnet_cidrs
@@ -75,12 +76,14 @@ module "edge" {
 module "data" {
   source = "../../modules/data"
 
-  project                = var.project
-  environment            = var.environment
-  vpc_id                 = module.network.vpc_id
-  private_subnet_ids     = module.network.private_subnet_ids
-  ecs_security_group_ids = values(module.compute.ecs_security_group_ids)
-  db_password            = var.db_password
+  project                           = var.project
+  environment                       = var.environment
+  vpc_id                            = module.network.vpc_id
+  private_subnet_ids                = module.network.private_subnet_ids
+  db_username                       = var.db_username
+  db_password                       = var.db_password
+  valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
+  valkey_auth_token                 = var.valkey_auth_token
 }
 
 module "compute" {
@@ -92,10 +95,13 @@ module "compute" {
   vpc_id      = module.network.vpc_id
 
   alb_subnet_ids = module.network.public_subnet_ids
-  # Demo topology (NAT off): tasks in public subnets with public IPs.
-  # If NAT is enabled later, switch to private subnets + assign_public_ip = false.
-  ecs_subnet_ids   = module.network.public_subnet_ids
-  assign_public_ip = true
+  # Production topology: the ALB stays public, but the ECS tasks run in
+  # private subnets with no public IP. Tasks reach the internet (ECR,
+  # Midtrans, SES, SQS) through the per-AZ NAT gateways, and reach AWS
+  # services privately through the VPC endpoints. A task is only reachable
+  # through the ALB — never directly from the internet.
+  ecs_subnet_ids   = module.network.private_subnet_ids
+  assign_public_ip = false
 
   auth_image         = var.auth_image
   core_image         = var.core_image
@@ -114,11 +120,19 @@ module "compute" {
 
   certificate_arn = var.certificate_arn
 
-  db_address  = module.data.db_address
-  db_port     = module.data.db_port
-  db_name     = module.data.db_name
-  valkey_host = module.data.valkey_primary_endpoint_address
-  valkey_port = module.data.valkey_port
+  db_security_group_id     = module.data.db_security_group_id
+  valkey_security_group_id = module.data.valkey_security_group_id
+  db_username              = var.db_username
+  db_password              = var.db_password
+  db_address               = module.data.db_address
+  db_port                  = module.data.db_port
+  db_name                  = module.data.db_name
+  valkey_host              = module.data.valkey_primary_endpoint_address
+  valkey_port              = module.data.valkey_port
+  # Same values the data module got above, so the cluster and the
+  # connection URLs always agree (TLS scheme + auth token).
+  valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
+  valkey_auth_token                 = var.valkey_auth_token
 
   sqs_notification_queue_url = module.messaging.queue_urls["notification"]
   sqs_queue_arns             = values(module.messaging.queue_arns)
@@ -152,4 +166,9 @@ module "observability" {
   core_service_name  = module.compute.core_service_name
   queue_service_name = module.compute.queue_service_name
   dlq_queue_arns     = module.messaging.dlq_arns
+  alarm_email        = var.alarm_email
+  # CloudTrail stays off: the account baseline trail (soldev-lz-trail,
+  # multi-region) already covers audit. Enable only if this environment
+  # needs its own trail in addition to the baseline.
+  enable_cloudtrail = false
 }
