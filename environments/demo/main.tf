@@ -81,7 +81,7 @@ module "data" {
   vpc_id                            = module.network.vpc_id
   private_subnet_ids                = module.network.private_subnet_ids
   db_username                       = var.db_username
-  db_password                       = var.db_password
+  master_user_secret_kms_key_id     = var.master_user_secret_kms_key_id
   valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
   valkey_auth_token                 = var.valkey_auth_token
 }
@@ -122,8 +122,7 @@ module "compute" {
 
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id
-  db_username              = var.db_username
-  db_password              = var.db_password
+  database_url_secret_arn  = var.database_url_secret_arn
   db_address               = module.data.db_address
   db_port                  = module.data.db_port
   db_name                  = module.data.db_name

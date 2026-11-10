@@ -18,6 +18,11 @@ output "alb_dns_name" {
   value = module.compute.alb_dns_name
 }
 
+output "db_master_user_secret_arn" {
+  description = "ARN of the RDS-managed master credential secret."
+  value       = module.data.db_master_user_secret_arn
+}
+
 output "db_endpoint" {
   value = module.data.db_endpoint
 }

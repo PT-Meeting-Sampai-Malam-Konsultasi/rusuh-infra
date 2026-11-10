@@ -1260,6 +1260,7 @@ resource "aws_iam_role_policy" "task" {
 
 locals {
   all_secret_arns = concat(
+    [var.database_url_secret_arn],
     values(var.auth_secrets),
     values(var.core_secrets),
     values(var.payment_secrets),
@@ -1269,18 +1270,10 @@ locals {
     values(var.queue_secrets),
   )
 
-  # Connection URLs the apps actually read. The old base_environment
-  # (DB_HOST/DB_PORT/DB_NAME/VALKEY_HOST/VALKEY_PORT) was read by NO
-  # service: the Node apps read DATABASE_URL/VALKEY_URL (URIs) and the Go
-  # queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. So the
-  # Terraform-provided vars never reached the apps and they fell back to
-  # in-memory stores. These locals build the URLs the apps read.
-  #
-  # DATABASE_URL embeds the password (urlencode handles @ : / % etc.).
-  # It is a plain env var, so the password is visible in the ECS console
-  # and Terraform state — moving it to Secrets Manager is the
-  # RDS-managed-password follow-up, not this change.
-  database_url = var.db_password != null ? "postgres://${var.db_username}:${urlencode(var.db_password)}@${var.db_address}:${var.db_port}/${var.db_name}" : null
+  # The Node services read DATABASE_URL and VALKEY_URL; the Go queue reads
+  # VALKEY_ADDR and VALKEY_PASSWORD. DATABASE_URL is injected directly from
+  # Secrets Manager so its password never appears in Terraform state or the
+  # ECS task-definition environment section.
 
   # VALKEY_URL scheme follows the cluster: a token forces rediss://
   # (AWS requires transit encryption with an auth token); TLS without a
@@ -1294,13 +1287,13 @@ locals {
     : "redis://${var.valkey_host}:${var.valkey_port}"
   )
 
-  # Node services (auth/core/payment/notification/officer/admin) read
-  # these two URIs. DATABASE_URL is omitted when no password is given
-  # (the app then uses its in-memory store).
-  node_environment = merge(
-    var.db_password != null ? { DATABASE_URL = local.database_url } : {},
-    { VALKEY_URL = local.valkey_url },
-  )
+  node_environment = {
+    VALKEY_URL = local.valkey_url
+  }
+
+  node_connection_secrets = {
+    DATABASE_URL = var.database_url_secret_arn
+  }
 
   # Go queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. It does
   # not use Postgres, so it deliberately gets no DATABASE_URL.
@@ -1379,7 +1372,7 @@ resource "aws_ecs_task_definition" "auth" {
         { containerPort = var.auth_port, protocol = "tcp", name = "auth" }
       ]
       environment = [for k, v in local.auth_environment : { name = k, value = v }]
-      secrets     = [for k, v in var.auth_secrets : { name = k, valueFrom = v }]
+      secrets     = [for k, v in merge(var.auth_secrets, local.node_connection_secrets) : { name = k, valueFrom = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -1415,7 +1408,7 @@ resource "aws_ecs_task_definition" "core" {
         { containerPort = var.core_port, protocol = "tcp", name = "core" }
       ]
       environment = [for k, v in local.core_environment : { name = k, value = v }]
-      secrets     = [for k, v in var.core_secrets : { name = k, valueFrom = v }]
+      secrets     = [for k, v in merge(var.core_secrets, local.node_connection_secrets) : { name = k, valueFrom = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -1451,7 +1444,7 @@ resource "aws_ecs_task_definition" "payment" {
         { containerPort = var.payment_port, protocol = "tcp", name = "payment" }
       ]
       environment = [for k, v in local.payment_environment : { name = k, value = v }]
-      secrets     = [for k, v in var.payment_secrets : { name = k, valueFrom = v }]
+      secrets     = [for k, v in merge(var.payment_secrets, local.node_connection_secrets) : { name = k, valueFrom = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -1487,7 +1480,7 @@ resource "aws_ecs_task_definition" "notification" {
         { containerPort = var.notification_port, protocol = "tcp", name = "notification" }
       ]
       environment = [for k, v in local.notification_environment : { name = k, value = v }]
-      secrets     = [for k, v in var.notification_secrets : { name = k, valueFrom = v }]
+      secrets     = [for k, v in merge(var.notification_secrets, local.node_connection_secrets) : { name = k, valueFrom = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -1523,7 +1516,7 @@ resource "aws_ecs_task_definition" "officer" {
         { containerPort = var.officer_port, protocol = "tcp", name = "officer" }
       ]
       environment = [for k, v in local.officer_environment : { name = k, value = v }]
-      secrets     = [for k, v in var.officer_secrets : { name = k, valueFrom = v }]
+      secrets     = [for k, v in merge(var.officer_secrets, local.node_connection_secrets) : { name = k, valueFrom = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -1559,7 +1552,7 @@ resource "aws_ecs_task_definition" "admin" {
         { containerPort = var.admin_port, protocol = "tcp", name = "admin" }
       ]
       environment = [for k, v in local.admin_environment : { name = k, value = v }]
-      secrets     = [for k, v in var.admin_secrets : { name = k, valueFrom = v }]
+      secrets     = [for k, v in merge(var.admin_secrets, local.node_connection_secrets) : { name = k, valueFrom = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {

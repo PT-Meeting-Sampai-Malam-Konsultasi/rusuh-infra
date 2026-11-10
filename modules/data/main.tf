@@ -36,12 +36,13 @@ resource "aws_db_instance" "this" {
   engine_version = var.db_engine_version
   instance_class = var.db_instance_class
 
-  allocated_storage      = var.db_allocated_storage
-  storage_encrypted      = true
-  db_name                = var.db_name
-  username               = var.db_username
-  password               = var.db_password
-  db_subnet_group_name   = aws_db_subnet_group.this.name
+  allocated_storage                  = var.db_allocated_storage
+  storage_encrypted                  = true
+  db_name                            = var.db_name
+  username                           = var.db_username
+  manage_master_user_password        = true
+  master_user_secret_kms_key_id      = var.master_user_secret_kms_key_id != "" ? var.master_user_secret_kms_key_id : null
+  db_subnet_group_name               = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.db.id]
 
   multi_az                = var.db_multi_az

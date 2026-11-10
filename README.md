@@ -59,21 +59,22 @@ This is a production-ready setup, not an evaluation-only one:
   the SNS subscription after apply.
 - **Backup/restore:** see `docs/runbook-backup-restore.md`.
 
-Known follow-ups (not in this repo yet): RDS-managed master password
-(the `DATABASE_URL` env var embeds the password in plaintext, visible
-in the ECS console and Terraform state — the switch needs the app to
-fetch the password from Secrets Manager at runtime); Valkey in-transit
-encryption (the wiring is ready: Terraform builds a `rediss://`
+RDS manages and stores the master password in Secrets Manager; Terraform
+exposes only the managed-secret ARN. A separate application `DATABASE_URL`
+secret remains necessary until the applications can consume the RDS-managed
+JSON secret directly. Known follow-ups (not in this repo yet): RDS password
+rotation needs an application/runtime integration; Valkey in-transit encryption (the wiring is ready: Terraform builds a `rediss://`
 `VALKEY_URL` and a `VALKEY_PASSWORD` for the queue as soon as
 `valkey_transit_encryption_enabled = true` and `valkey_auth_token` are
 set, and rusuh-core needs no code change — ioredis enables TLS on
 `rediss://` automatically — but rusuh-queue/Go must enable TLS in its
 client first, a team follow-up); HTTPS end-to-end requires the ACM
 certificate to be validated and `certificate_arn` set at apply time.
-Connection URLs: the Node services get `DATABASE_URL` +
-`VALKEY_URL` (the URIs the apps read); the Go queue gets
-`VALKEY_ADDR` (host:port) + `VALKEY_PASSWORD` and deliberately no
-`DATABASE_URL`. The data-layer security groups carry no ingress
+Connection URLs: the Node services get `DATABASE_URL` from a required
+Secrets Manager ARN plus `VALKEY_URL`; the Go queue gets `VALKEY_ADDR`
+(host:port) + `VALKEY_PASSWORD` and deliberately no `DATABASE_URL`.
+The database URI never appears in Terraform-generated task-definition
+environment variables. The data-layer security groups carry no ingress
 rules in the data module — the compute module creates the ingress
 rules (DB 5432, Valkey 6379) from the ECS security groups, so the
 dependency is one-way (compute → data) and no cycle can form.
