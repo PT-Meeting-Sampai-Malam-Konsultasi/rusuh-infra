@@ -1269,13 +1269,45 @@ locals {
     values(var.queue_secrets),
   )
 
-  base_environment = {
-    DB_HOST     = var.db_address
-    DB_PORT     = tostring(var.db_port)
-    DB_NAME     = var.db_name
-    VALKEY_HOST = var.valkey_host
-    VALKEY_PORT = tostring(var.valkey_port)
-  }
+  # Connection URLs the apps actually read. The old base_environment
+  # (DB_HOST/DB_PORT/DB_NAME/VALKEY_HOST/VALKEY_PORT) was read by NO
+  # service: the Node apps read DATABASE_URL/VALKEY_URL (URIs) and the Go
+  # queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. So the
+  # Terraform-provided vars never reached the apps and they fell back to
+  # in-memory stores. These locals build the URLs the apps read.
+  #
+  # DATABASE_URL embeds the password (urlencode handles @ : / % etc.).
+  # It is a plain env var, so the password is visible in the ECS console
+  # and Terraform state — moving it to Secrets Manager is the
+  # RDS-managed-password follow-up, not this change.
+  database_url = var.db_password != null ? "postgres://${var.db_username}:${urlencode(var.db_password)}@${var.db_address}:${var.db_port}/${var.db_name}" : null
+
+  # VALKEY_URL scheme follows the cluster: a token forces rediss://
+  # (AWS requires transit encryption with an auth token); TLS without a
+  # token is rediss://; otherwise redis://. ioredis (Node) enables TLS
+  # automatically on rediss://, no code change needed.
+  valkey_url = (
+    var.valkey_auth_token != null
+    ? "rediss://:${urlencode(var.valkey_auth_token)}@${var.valkey_host}:${var.valkey_port}"
+    : var.valkey_transit_encryption_enabled
+    ? "rediss://${var.valkey_host}:${var.valkey_port}"
+    : "redis://${var.valkey_host}:${var.valkey_port}"
+  )
+
+  # Node services (auth/core/payment/notification/officer/admin) read
+  # these two URIs. DATABASE_URL is omitted when no password is given
+  # (the app then uses its in-memory store).
+  node_environment = merge(
+    var.db_password != null ? { DATABASE_URL = local.database_url } : {},
+    { VALKEY_URL = local.valkey_url },
+  )
+
+  # Go queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. It does
+  # not use Postgres, so it deliberately gets no DATABASE_URL.
+  queue_valkey_environment = merge(
+    { VALKEY_ADDR = "${var.valkey_host}:${var.valkey_port}" },
+    var.valkey_auth_token != null ? { VALKEY_PASSWORD = var.valkey_auth_token } : {},
+  )
 
   shared_optional_environment = merge(
     var.sqs_notification_queue_url != "" ? { SQS_NOTIFICATION_URL = var.sqs_notification_queue_url } : {},
@@ -1284,43 +1316,43 @@ locals {
   )
 
   auth_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.auth_extra_environment,
   )
 
   core_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.core_extra_environment,
   )
 
   payment_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.payment_extra_environment,
   )
 
   notification_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.notification_extra_environment,
   )
 
   officer_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.officer_extra_environment,
   )
 
   admin_environment = merge(
-    local.base_environment,
+    local.node_environment,
     local.shared_optional_environment,
     var.admin_extra_environment,
   )
 
   queue_environment = merge(
-    local.base_environment,
+    local.queue_valkey_environment,
     local.shared_optional_environment,
     # ADOT sidecar (same task, localhost): queue exports OTLP to it.
     { OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317" },

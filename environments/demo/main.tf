@@ -76,11 +76,14 @@ module "edge" {
 module "data" {
   source = "../../modules/data"
 
-  project            = var.project
-  environment        = var.environment
-  vpc_id             = module.network.vpc_id
-  private_subnet_ids = module.network.private_subnet_ids
-  db_password        = var.db_password
+  project                           = var.project
+  environment                       = var.environment
+  vpc_id                            = module.network.vpc_id
+  private_subnet_ids                = module.network.private_subnet_ids
+  db_username                       = var.db_username
+  db_password                       = var.db_password
+  valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
+  valkey_auth_token                 = var.valkey_auth_token
 }
 
 module "compute" {
@@ -119,11 +122,17 @@ module "compute" {
 
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id
+  db_username              = var.db_username
+  db_password              = var.db_password
   db_address               = module.data.db_address
   db_port                  = module.data.db_port
   db_name                  = module.data.db_name
   valkey_host              = module.data.valkey_primary_endpoint_address
   valkey_port              = module.data.valkey_port
+  # Same values the data module got above, so the cluster and the
+  # connection URLs always agree (TLS scheme + auth token).
+  valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
+  valkey_auth_token                 = var.valkey_auth_token
 
   sqs_notification_queue_url = module.messaging.queue_urls["notification"]
   sqs_queue_arns             = values(module.messaging.queue_arns)

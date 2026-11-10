@@ -60,12 +60,20 @@ This is a production-ready setup, not an evaluation-only one:
 - **Backup/restore:** see `docs/runbook-backup-restore.md`.
 
 Known follow-ups (not in this repo yet): RDS-managed master password
-(the app reads `DATABASE_URL`, so the switch needs the app to fetch
-the password from Secrets Manager at runtime); Valkey in-transit
-encryption (off until rusuh-core uses a `rediss://` `VALKEY_URL` and
-rusuh-queue/Go enables TLS — team follow-up); HTTPS end-to-end
-requires the ACM certificate to be validated and `certificate_arn`
-set at apply time. The data-layer security groups carry no ingress
+(the `DATABASE_URL` env var embeds the password in plaintext, visible
+in the ECS console and Terraform state — the switch needs the app to
+fetch the password from Secrets Manager at runtime); Valkey in-transit
+encryption (the wiring is ready: Terraform builds a `rediss://`
+`VALKEY_URL` and a `VALKEY_PASSWORD` for the queue as soon as
+`valkey_transit_encryption_enabled = true` and `valkey_auth_token` are
+set, and rusuh-core needs no code change — ioredis enables TLS on
+`rediss://` automatically — but rusuh-queue/Go must enable TLS in its
+client first, a team follow-up); HTTPS end-to-end requires the ACM
+certificate to be validated and `certificate_arn` set at apply time.
+Connection URLs: the Node services get `DATABASE_URL` +
+`VALKEY_URL` (the URIs the apps read); the Go queue gets
+`VALKEY_ADDR` (host:port) + `VALKEY_PASSWORD` and deliberately no
+`DATABASE_URL`. The data-layer security groups carry no ingress
 rules in the data module — the compute module creates the ingress
 rules (DB 5432, Valkey 6379) from the ECS security groups, so the
 dependency is one-way (compute → data) and no cycle can form.
