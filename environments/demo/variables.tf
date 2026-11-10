@@ -193,10 +193,15 @@ variable "db_username" {
   default     = "msmk_app"
 }
 
-variable "db_password" {
-  description = "Postgres master password. No default: supply via tfvars (gitignored), never commit."
+variable "master_user_secret_kms_key_id" {
+  description = "Optional customer-managed KMS key ID or ARN for the RDS-managed master-user secret. Empty uses the AWS-managed Secrets Manager key."
   type        = string
-  sensitive   = true
+  default     = ""
+}
+
+variable "database_url_secret_arn" {
+  description = "Secrets Manager ARN containing the DATABASE_URL value injected into every Node ECS task. Required: do not fall back to a plaintext task-definition environment variable."
+  type        = string
 }
 
 variable "valkey_transit_encryption_enabled" {

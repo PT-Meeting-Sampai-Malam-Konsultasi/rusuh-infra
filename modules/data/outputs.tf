@@ -8,6 +8,11 @@ output "valkey_security_group_id" {
   value       = aws_security_group.valkey.id
 }
 
+output "db_master_user_secret_arn" {
+  description = "ARN of the RDS-managed secret containing the PostgreSQL master credentials."
+  value       = aws_db_instance.this.master_user_secret[0].secret_arn
+}
+
 output "db_endpoint" {
   value = aws_db_instance.this.endpoint
 }

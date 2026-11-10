@@ -30,10 +30,10 @@ variable "db_username" {
   default     = "msmk_app"
 }
 
-variable "db_password" {
-  description = "Postgres master password. No default: supply via tfvars (gitignored) or out-of-band; never commit it."
+variable "master_user_secret_kms_key_id" {
+  description = "Optional customer-managed KMS key ID or ARN for the RDS-managed master-user secret. Empty uses the AWS-managed Secrets Manager key."
   type        = string
-  sensitive   = true
+  default     = ""
 }
 
 variable "db_instance_class" {

@@ -332,17 +332,9 @@ variable "valkey_security_group_id" {
   default     = ""
 }
 
-variable "db_username" {
-  description = "Postgres username for the DATABASE_URL (must match the data module's db_username)."
+variable "database_url_secret_arn" {
+  description = "Secrets Manager ARN containing the DATABASE_URL value injected into Node ECS task definitions."
   type        = string
-  default     = "msmk_app"
-}
-
-variable "db_password" {
-  description = "Postgres password for the DATABASE_URL. Sensitive: it is embedded in the DATABASE_URL env var (visible in the ECS console and Terraform state). Moving it to Secrets Manager is the RDS-managed-password follow-up."
-  type        = string
-  sensitive   = true
-  default     = null
 }
 
 variable "valkey_transit_encryption_enabled" {

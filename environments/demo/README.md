@@ -16,21 +16,26 @@ Status on this branch: all modules are wired (see `main.tf`):
 
 ## Required variables (no defaults)
 
-`db_password`, `auth_image`, `core_image`, `payment_image`,
-`notification_image`, `officer_image`, `admin_image`, `queue_image`,
-`core_port`, `queue_port`, `s3_bucket_name` — supply via a tfvars
-file (gitignored, never committed) or `-var`. Example:
-`terraform plan -var-file="demo.tfvars"` with `demo.tfvars`
-containing all eleven values. (Ports for auth/payment/notification/
-officer/admin default to 8081/8083/8084/8085/8086.)
+`database_url_secret_arn`, `alarm_email`, `auth_image`, `core_image`,
+`payment_image`, `notification_image`, `officer_image`, `admin_image`,
+`queue_image`, `core_port`, `queue_port`, `s3_bucket_name`
+— supply via a tfvars file (gitignored, never committed) or `-var`.
+`database_url_secret_arn` must reference a Secrets Manager value containing
+one complete PostgreSQL URI; Terraform never constructs or stores that URI.
+RDS generates and stores its master password in a separate RDS-managed secret;
+its ARN is exposed as the `db_master_user_secret_arn` Terraform output.
+(Ports for auth/payment/notification/officer/admin default to
+8081/8083/8084/8085/8086.)
 
 ## Two-step flows (written explicitly, not assumed)
 
 - Secrets: apply first (secrets are empty shells) → fill values via
   the AWS console/CLI by the owner → apply again with the secret ARNs
-  in `auth_secrets`/`core_secrets`/`payment_secrets`/
-  `notification_secrets`/`officer_secrets`/`admin_secrets`/
-  `queue_secrets`.
+  in `database_url_secret_arn`, `auth_secrets`/`core_secrets`/
+  `payment_secrets`/`notification_secrets`/`officer_secrets`/
+  `admin_secrets`/`queue_secrets`. The database URI secret is required
+  for every Node task; it is injected through the ECS `secrets` field,
+  not a plaintext task-definition environment variable.
 - DNS/SES: after apply, create the validation records from the
   `certificate_validation_options` output and the email module's DKIM
   tokens in Cloudflare → certificate validated → fill
