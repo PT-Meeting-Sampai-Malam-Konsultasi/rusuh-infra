@@ -1,4 +1,4 @@
-# Environment: demo
+# Environment: prod
 
 Evaluation environment for 13 November 2026. This root module wires
 the modules in `../../modules/` into one applyable stack.
@@ -40,7 +40,7 @@ its ARN is exposed as the `db_master_user_secret_arn` Terraform output.
   `certificate_validation_options` output and the email module's DKIM
   tokens in Cloudflare → certificate validated → fill
   `certificate_arn` and apply again to enable the HTTPS 443 listener.
-  Until then the demo runs on HTTP only (and the HTTP listener
+  Until then the stack runs on HTTP only (and the HTTP listener
   forwards to core instead of redirecting to HTTPS).
 - CloudFront custom domain: the edge module needs an ACM certificate
   for `api.rusuh-tiket.web.id` **in us-east-1** (separate from the
@@ -66,4 +66,4 @@ its ARN is exposed as the `db_master_user_secret_arn` Terraform output.
   subnets and `assign_public_ip` to false.
 
 Warning: `terraform destroy` in this environment deletes the entire
-demo stack. Do not run it without team approval.
+prod stack. Do not run it without team approval.

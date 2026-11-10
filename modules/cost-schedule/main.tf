@@ -46,9 +46,9 @@ locals {
       for service, desired_count in var.weekday_service_desired_counts : "start-${service}" => {
         expression = "cron(0 6 ? * MON-FRI *)"
         input = {
-          cluster      = var.ecs_cluster_name
-          service      = service
-          desiredCount = desired_count
+          Cluster      = var.ecs_cluster_name
+          Service      = service
+          DesiredCount = desired_count
         }
       }
     },
@@ -56,9 +56,9 @@ locals {
       for service in keys(var.weekday_service_desired_counts) : "stop-weekday-${service}" => {
         expression = "cron(0 0 ? * TUE-FRI *)"
         input = {
-          cluster      = var.ecs_cluster_name
-          service      = service
-          desiredCount = 0
+          Cluster      = var.ecs_cluster_name
+          Service      = service
+          DesiredCount = 0
         }
       }
     },
@@ -66,9 +66,9 @@ locals {
       for service in keys(var.weekday_service_desired_counts) : "stop-weekend-${service}" => {
         expression = "cron(1 0 ? * SAT *)"
         input = {
-          cluster      = var.ecs_cluster_name
-          service      = service
-          desiredCount = 0
+          Cluster      = var.ecs_cluster_name
+          Service      = service
+          DesiredCount = 0
         }
       }
     },
@@ -125,7 +125,7 @@ resource "aws_scheduler_schedule" "rds" {
     arn      = each.value.target_arn
     role_arn = aws_iam_role.scheduler.arn
     input = jsonencode({
-      DBInstanceIdentifier = var.db_instance_identifier
+      DbInstanceIdentifier = var.db_instance_identifier
     })
   }
 }

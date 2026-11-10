@@ -22,38 +22,38 @@ jobs:
           - app: auth
             image: msmk-auth
             package: '@rusuh/auth-service'
-            ecs-service: msmk-demo-auth
-            ecs-task-family: msmk-demo-auth
+            ecs-service: msmk-prod-auth
+            ecs-task-family: msmk-prod-auth
             ecs-container: auth
           - app: core
             image: msmk-core
             package: '@rusuh/core-service'
-            ecs-service: msmk-demo-core
-            ecs-task-family: msmk-demo-core
+            ecs-service: msmk-prod-core
+            ecs-task-family: msmk-prod-core
             ecs-container: core
           - app: payment
             image: msmk-payment
             package: '@rusuh/payment-service'
-            ecs-service: msmk-demo-payment
-            ecs-task-family: msmk-demo-payment
+            ecs-service: msmk-prod-payment
+            ecs-task-family: msmk-prod-payment
             ecs-container: payment
           - app: notification
             image: msmk-notification
             package: '@rusuh/notification-service'
-            ecs-service: msmk-demo-notification
-            ecs-task-family: msmk-demo-notification
+            ecs-service: msmk-prod-notification
+            ecs-task-family: msmk-prod-notification
             ecs-container: notification
           - app: officer
             image: msmk-officer
             package: '@rusuh/officer-service'
-            ecs-service: msmk-demo-officer
-            ecs-task-family: msmk-demo-officer
+            ecs-service: msmk-prod-officer
+            ecs-task-family: msmk-prod-officer
             ecs-container: officer
           - app: admin
             image: msmk-admin
             package: '@rusuh/admin-service'
-            ecs-service: msmk-demo-admin
-            ecs-task-family: msmk-demo-admin
+            ecs-service: msmk-prod-admin
+            ecs-task-family: msmk-prod-admin
             ecs-container: admin
     uses: PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-ci.yml@v1
     permissions:
@@ -79,33 +79,33 @@ jobs:
         include:
           - app: auth
             image: msmk-auth
-            ecs-service: msmk-demo-auth
-            ecs-task-family: msmk-demo-auth
+            ecs-service: msmk-prod-auth
+            ecs-task-family: msmk-prod-auth
             ecs-container: auth
           - app: core
             image: msmk-core
-            ecs-service: msmk-demo-core
-            ecs-task-family: msmk-demo-core
+            ecs-service: msmk-prod-core
+            ecs-task-family: msmk-prod-core
             ecs-container: core
           - app: payment
             image: msmk-payment
-            ecs-service: msmk-demo-payment
-            ecs-task-family: msmk-demo-payment
+            ecs-service: msmk-prod-payment
+            ecs-task-family: msmk-prod-payment
             ecs-container: payment
           - app: notification
             image: msmk-notification
-            ecs-service: msmk-demo-notification
-            ecs-task-family: msmk-demo-notification
+            ecs-service: msmk-prod-notification
+            ecs-task-family: msmk-prod-notification
             ecs-container: notification
           - app: officer
             image: msmk-officer
-            ecs-service: msmk-demo-officer
-            ecs-task-family: msmk-demo-officer
+            ecs-service: msmk-prod-officer
+            ecs-task-family: msmk-prod-officer
             ecs-container: officer
           - app: admin
             image: msmk-admin
-            ecs-service: msmk-demo-admin
-            ecs-task-family: msmk-demo-admin
+            ecs-service: msmk-prod-admin
+            ecs-task-family: msmk-prod-admin
             ecs-container: admin
     uses: PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@v1
     permissions:

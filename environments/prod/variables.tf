@@ -5,9 +5,9 @@ variable "project" {
 }
 
 variable "environment" {
-  description = "Environment name (demo = evaluation environment for 13 Nov 2026)."
+  description = "Environment name used in resource names and tags (prod = production environment for the 13 Nov 2026 evaluation and beyond)."
   type        = string
-  default     = "demo"
+  default     = "prod"
 }
 
 variable "region" {
@@ -23,13 +23,13 @@ variable "vpc_cidr" {
 }
 
 variable "availability_zones" {
-  description = "Availability zones to spread subnets across (2 AZs for demo)."
+  description = "Availability zones to spread subnets across (2 AZs)."
   type        = list(string)
   default     = ["ap-southeast-3a", "ap-southeast-3b"]
 }
 
 variable "public_subnet_cidrs" {
-  description = "One CIDR per availability zone, for public subnets (ALB + demo ECS)."
+  description = "One CIDR per availability zone, for public subnets (ALB only)."
   type        = list(string)
   default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
@@ -94,39 +94,52 @@ variable "certificate_arn" {
   default     = ""
 }
 
-variable "auth_image" {
-  description = "Container image for service-auth. No default: from its CI build."
+variable "bootstrap_image" {
+  description = "Valid public image used by zero-count ECS task definitions until service images are published."
   type        = string
+  default     = "public.ecr.aws/docker/library/busybox:1.36.1"
+}
+
+variable "auth_image" {
+  description = "Container image for service-auth. Empty uses bootstrap_image while desired count is zero."
+  type        = string
+  default     = ""
 }
 
 variable "core_image" {
-  description = "Container image for service-core. No default: from its CI build."
+  description = "Container image for service-core. Empty uses bootstrap_image while desired count is zero."
   type        = string
+  default     = ""
 }
 
 variable "payment_image" {
-  description = "Container image for service-payment. No default: from its CI build."
+  description = "Container image for service-payment. Empty uses bootstrap_image while desired count is zero."
   type        = string
+  default     = ""
 }
 
 variable "notification_image" {
-  description = "Container image for service-notification. No default: from its CI build."
+  description = "Container image for service-notification. Empty uses bootstrap_image while desired count is zero."
   type        = string
+  default     = ""
 }
 
 variable "officer_image" {
-  description = "Container image for service-officer. No default: from its CI build."
+  description = "Container image for service-officer. Empty uses bootstrap_image while desired count is zero."
   type        = string
+  default     = ""
 }
 
 variable "admin_image" {
-  description = "Container image for service-admin. No default: from its CI build."
+  description = "Container image for service-admin. Empty uses bootstrap_image while desired count is zero."
   type        = string
+  default     = ""
 }
 
 variable "queue_image" {
-  description = "Container image for service-queue. No default: from its CI build."
+  description = "Container image for service-queue. Empty uses bootstrap_image while desired count is zero."
   type        = string
+  default     = ""
 }
 
 variable "auth_port" {
@@ -136,8 +149,9 @@ variable "auth_port" {
 }
 
 variable "core_port" {
-  description = "Container port of service-core. No default: confirm with the service owner."
+  description = "Container port of service-core. Bootstrap default is 8080; override with the verified service port before enabling ECS schedules."
   type        = number
+  default     = 8080
 }
 
 variable "payment_port" {
@@ -165,8 +179,9 @@ variable "admin_port" {
 }
 
 variable "queue_port" {
-  description = "Container port of service-queue. No default: confirm with the service owner."
+  description = "Container port of service-queue. Bootstrap default is 8080; override with the verified service port before enabling ECS schedules."
   type        = number
+  default     = 8080
 }
 
 variable "core_desired_count" {
@@ -211,6 +226,12 @@ variable "admin_desired_count" {
   default     = 0
 }
 
+variable "autoscaling_min_capacity" {
+  description = "Minimum ECS desired count. Keep 0 until service images and runtime secrets are verified."
+  type        = number
+  default     = 0
+}
+
 variable "weekday_service_desired_counts" {
   description = "ECS service desired counts set at 06:00 WIB on weekdays by the cost scheduler."
   type        = map(number)
@@ -226,9 +247,9 @@ variable "weekday_service_desired_counts" {
 }
 
 variable "cost_schedule_enabled" {
-  description = "Enable EventBridge Scheduler weekday start and overnight/weekend stop schedules."
+  description = "Enable EventBridge Scheduler after service images, DATABASE_URL, and runtime checks are ready."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "acm_certificate_arn_us_east_1" {
@@ -264,11 +285,6 @@ variable "master_user_secret_kms_key_id" {
   description = "Optional customer-managed KMS key ID or ARN for the RDS-managed master-user secret. Empty uses the AWS-managed Secrets Manager key."
   type        = string
   default     = ""
-}
-
-variable "database_url_secret_arn" {
-  description = "Secrets Manager ARN containing the DATABASE_URL value injected into every Node ECS task. Required: do not fall back to a plaintext task-definition environment variable."
-  type        = string
 }
 
 variable "valkey_transit_encryption_enabled" {

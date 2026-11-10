@@ -104,7 +104,7 @@ core infra.
 ```
 bootstrap/            # One-time, local state: S3 state bucket + DynamoDB lock table
 environments/
-  demo/               # 13 Nov evaluation environment (root module: network + further modules)
+  prod/               # production environment (root module wiring all modules)
 modules/
   network/            # VPC, subnets, IGW, route tables, optional NAT
   data/               # RDS + ElastiCache Valkey
@@ -133,14 +133,14 @@ state on individual machines. First-time order:
 1. `cd bootstrap && terraform init && terraform apply`
    (local state; note the `state_bucket_name` and `lock_table_name`
    outputs).
-2. `cd environments/demo && terraform init \
+2. `cd environments/prod && terraform init \
      -backend-config="bucket=<state_bucket_name>" \
-     -backend-config="key=rusuh/demo/terraform.tfstate" \
+     -backend-config="key=msmk/prod/terraform.tfstate" \
      -backend-config="region=ap-southeast-3" \
      -backend-config="dynamodb_table=<lock_table_name>"`
 3. `terraform plan` → review → `terraform apply`.
 
-The backend in `environments/demo/backend.tf` is intentionally a
+The backend in `environments/prod/backend.tf` is intentionally a
 partial configuration (no hardcoded bucket name) so no bucket name
 is guessed in the repo.
 
@@ -191,7 +191,7 @@ inside a running task during the evaluation (there is no bastion):
 
 ```sh
 aws ecs execute-command \
-  --cluster msmk-demo-cluster \
+  --cluster msmk-prod-cluster \
   --task <task-id> \
   --container core \
   --interactive \
@@ -199,7 +199,7 @@ aws ecs execute-command \
 ```
 
 List tasks first with `aws ecs list-tasks --cluster
-msmk-demo-cluster --service-name msmk-demo-core-service`. The
-session is logged to CloudWatch (`/ecs/msmk-demo-<service>`). The
+msmk-prod-cluster --service-name msmk-prod-core-service`. The
+session is logged to CloudWatch (`/ecs/msmk-prod-<service>`). The
 queue service's admin port stays private — it is not exposed through
 the ALB; reach it via Service Connect or ECS Exec.

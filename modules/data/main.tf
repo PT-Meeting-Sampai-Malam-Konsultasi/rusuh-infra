@@ -119,6 +119,10 @@ resource "aws_elasticache_replication_group" "this" {
   transit_encryption_enabled = var.valkey_transit_encryption_enabled
   auth_token                 = var.valkey_auth_token
 
+  lifecycle {
+    ignore_changes = [auth_token_update_strategy]
+  }
+
   tags = {
     Name = "${var.project}-${var.environment}-valkey"
   }

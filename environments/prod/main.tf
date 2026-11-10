@@ -40,7 +40,11 @@ module "secrets" {
 
   project     = var.project
   environment = var.environment
-  secrets     = var.secrets
+  secrets = merge(var.secrets, {
+    database-url = {
+      description = "PostgreSQL URI consumed as DATABASE_URL by Node ECS tasks."
+    }
+  })
 }
 
 module "dns" {
@@ -103,13 +107,13 @@ module "compute" {
   ecs_subnet_ids   = module.network.private_subnet_ids
   assign_public_ip = false
 
-  auth_image         = var.auth_image
-  core_image         = var.core_image
-  payment_image      = var.payment_image
-  notification_image = var.notification_image
-  officer_image      = var.officer_image
-  admin_image        = var.admin_image
-  queue_image        = var.queue_image
+  auth_image         = var.auth_image != "" ? var.auth_image : var.bootstrap_image
+  core_image         = var.core_image != "" ? var.core_image : var.bootstrap_image
+  payment_image      = var.payment_image != "" ? var.payment_image : var.bootstrap_image
+  notification_image = var.notification_image != "" ? var.notification_image : var.bootstrap_image
+  officer_image      = var.officer_image != "" ? var.officer_image : var.bootstrap_image
+  admin_image        = var.admin_image != "" ? var.admin_image : var.bootstrap_image
+  queue_image        = var.queue_image != "" ? var.queue_image : var.bootstrap_image
   auth_port          = var.auth_port
   core_port          = var.core_port
   payment_port       = var.payment_port
@@ -122,6 +126,7 @@ module "compute" {
 
   core_desired_count         = var.core_desired_count
   queue_desired_count        = var.queue_desired_count
+  autoscaling_min_capacity   = var.autoscaling_min_capacity
   auth_desired_count         = var.auth_desired_count
   payment_desired_count      = var.payment_desired_count
   notification_desired_count = var.notification_desired_count
@@ -130,7 +135,7 @@ module "compute" {
 
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id
-  database_url_secret_arn  = var.database_url_secret_arn
+  database_url_secret_arn  = module.secrets.secret_arns["database-url"]
   db_address               = module.data.db_address
   db_port                  = module.data.db_port
   db_name                  = module.data.db_name

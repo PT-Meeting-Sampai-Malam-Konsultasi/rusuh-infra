@@ -14,7 +14,7 @@ terraform apply -var="state_bucket_name=<globally-unique-bucket-name>"
 
 Note the `state_bucket_name` and `lock_table_name` outputs, then use
 them as `-backend-config` when running `terraform init` in
-`environments/demo` (see the root README).
+`environments/prod` (see the root README).
 
 ## Notes
 
