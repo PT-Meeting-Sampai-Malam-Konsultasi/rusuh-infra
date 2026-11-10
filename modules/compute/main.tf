@@ -1304,8 +1304,14 @@ locals {
 
   # Go queue reads VALKEY_ADDR (host:port) + VALKEY_PASSWORD. It does
   # not use Postgres, so it deliberately gets no DATABASE_URL.
+  # VALKEY_TLS_ENABLED is the queue's TLS switch (internal/config/load.go,
+  # ci/shared-pipeline): it must match the cluster's transit encryption,
+  # or the queue tries plaintext against a TLS-only endpoint (and fails).
   queue_valkey_environment = merge(
-    { VALKEY_ADDR = "${var.valkey_host}:${var.valkey_port}" },
+    {
+      VALKEY_ADDR        = "${var.valkey_host}:${var.valkey_port}"
+      VALKEY_TLS_ENABLED = tostring(var.valkey_transit_encryption_enabled)
+    },
     var.valkey_auth_token != null ? { VALKEY_PASSWORD = var.valkey_auth_token } : {},
   )
 
