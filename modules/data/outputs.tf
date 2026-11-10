@@ -13,6 +13,11 @@ output "db_master_user_secret_arn" {
   value       = aws_db_instance.this.master_user_secret[0].secret_arn
 }
 
+output "db_instance_identifier" {
+  description = "RDS instance identifier used by operational schedules."
+  value       = aws_db_instance.this.identifier
+}
+
 output "db_endpoint" {
   value = aws_db_instance.this.endpoint
 }
@@ -34,5 +39,5 @@ output "valkey_primary_endpoint_address" {
 }
 
 output "valkey_port" {
-  value = aws_elasticache_replication_group.this.port
+  value = 6379
 }

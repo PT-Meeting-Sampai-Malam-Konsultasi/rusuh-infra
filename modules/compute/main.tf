@@ -272,7 +272,7 @@ resource "aws_security_group_rule" "core_to_payment" {
 # before: every ECS service group may reach Postgres (5432) and Valkey
 # (6379); tightening that per service is a separate change.
 resource "aws_security_group_rule" "db_ingress" {
-  for_each = var.db_security_group_id != "" ? local.service_security_group_ids : {}
+  for_each = local.service_security_group_ids
 
   type                     = "ingress"
   from_port                = 5432
@@ -284,7 +284,7 @@ resource "aws_security_group_rule" "db_ingress" {
 }
 
 resource "aws_security_group_rule" "valkey_ingress" {
-  for_each = var.valkey_security_group_id != "" ? local.service_security_group_ids : {}
+  for_each = local.service_security_group_ids
 
   type                     = "ingress"
   from_port                = 6379

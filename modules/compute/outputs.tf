@@ -55,6 +55,32 @@ output "admin_target_group_arn" {
   value = aws_lb_target_group.admin.arn
 }
 
+output "service_arns" {
+  description = "ECS service ARNs keyed by service name."
+  value = {
+    auth         = aws_ecs_service.auth.id
+    core         = aws_ecs_service.core.id
+    payment      = aws_ecs_service.payment.id
+    notification = aws_ecs_service.notification.id
+    officer      = aws_ecs_service.officer.id
+    admin        = aws_ecs_service.admin.id
+    queue        = aws_ecs_service.queue.id
+  }
+}
+
+output "service_desired_counts" {
+  description = "Configured desired counts keyed by service name."
+  value = {
+    auth         = var.auth_desired_count
+    core         = var.core_desired_count
+    payment      = var.payment_desired_count
+    notification = var.notification_desired_count
+    officer      = var.officer_desired_count
+    admin        = var.admin_desired_count
+    queue        = var.queue_desired_count
+  }
+}
+
 output "core_service_name" {
   value = aws_ecs_service.core.name
 }

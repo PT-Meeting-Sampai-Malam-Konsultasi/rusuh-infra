@@ -65,8 +65,13 @@ variable "ses_domain" {
 }
 
 variable "s3_bucket_name" {
-  description = "S3 bucket name for e-ticket PDFs. No default: globally unique."
+  description = "S3 bucket name for e-ticket PDFs. Must be globally unique and start with msmk-."
   type        = string
+
+  validation {
+    condition     = startswith(var.s3_bucket_name, "msmk-")
+    error_message = "s3_bucket_name must start with msmk-."
+  }
 }
 
 variable "secrets" {
@@ -162,6 +167,68 @@ variable "admin_port" {
 variable "queue_port" {
   description = "Container port of service-queue. No default: confirm with the service owner."
   type        = number
+}
+
+variable "core_desired_count" {
+  description = "Initial ECS desired count for service-core. Keep 0 until runtime images and secrets are ready."
+  type        = number
+  default     = 0
+}
+
+variable "queue_desired_count" {
+  description = "Initial ECS desired count for service-queue. Keep 0 until Valkey client compatibility is verified."
+  type        = number
+  default     = 0
+}
+
+variable "auth_desired_count" {
+  description = "Initial ECS desired count for service-auth. Keep 0 until runtime images and secrets are ready."
+  type        = number
+  default     = 0
+}
+
+variable "payment_desired_count" {
+  description = "Initial ECS desired count for service-payment. Keep 0 until runtime images and secrets are ready."
+  type        = number
+  default     = 0
+}
+
+variable "notification_desired_count" {
+  description = "Initial ECS desired count for service-notification. Keep 0 until runtime images and secrets are ready."
+  type        = number
+  default     = 0
+}
+
+variable "officer_desired_count" {
+  description = "Initial ECS desired count for service-officer. Keep 0 until runtime images and secrets are ready."
+  type        = number
+  default     = 0
+}
+
+variable "admin_desired_count" {
+  description = "Initial ECS desired count for service-admin. Keep 0 until runtime images and secrets are ready."
+  type        = number
+  default     = 0
+}
+
+variable "weekday_service_desired_counts" {
+  description = "ECS service desired counts set at 06:00 WIB on weekdays by the cost scheduler."
+  type        = map(number)
+  default = {
+    auth         = 1
+    core         = 1
+    payment      = 1
+    notification = 1
+    officer      = 1
+    admin        = 1
+    queue        = 1
+  }
+}
+
+variable "cost_schedule_enabled" {
+  description = "Enable EventBridge Scheduler weekday start and overnight/weekend stop schedules."
+  type        = bool
+  default     = true
 }
 
 variable "acm_certificate_arn_us_east_1" {

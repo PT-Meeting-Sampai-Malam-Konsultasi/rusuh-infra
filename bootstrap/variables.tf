@@ -11,6 +11,11 @@ variable "region" {
 }
 
 variable "state_bucket_name" {
-  description = "Name of the S3 bucket for Terraform state. Must be globally unique across all AWS accounts."
+  description = "Name of the S3 bucket for Terraform state. Must be globally unique across all AWS accounts and start with msmk-."
   type        = string
+
+  validation {
+    condition     = startswith(var.state_bucket_name, "msmk-")
+    error_message = "state_bucket_name must start with msmk-."
+  }
 }

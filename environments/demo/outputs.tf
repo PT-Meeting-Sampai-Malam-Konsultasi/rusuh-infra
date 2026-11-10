@@ -63,6 +63,11 @@ output "waf_acl_arn" {
   value = module.edge.waf_acl_arn
 }
 
+output "cost_scheduler_role_arn" {
+  description = "IAM role used by EventBridge Scheduler for cost-control actions."
+  value       = module.cost_schedule.scheduler_role_arn
+}
+
 output "dashboard_name" {
   value = module.observability.dashboard_name
 }

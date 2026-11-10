@@ -120,6 +120,14 @@ module "compute" {
 
   certificate_arn = var.certificate_arn
 
+  core_desired_count         = var.core_desired_count
+  queue_desired_count        = var.queue_desired_count
+  auth_desired_count         = var.auth_desired_count
+  payment_desired_count      = var.payment_desired_count
+  notification_desired_count = var.notification_desired_count
+  officer_desired_count      = var.officer_desired_count
+  admin_desired_count        = var.admin_desired_count
+
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id
   database_url_secret_arn  = var.database_url_secret_arn
@@ -152,6 +160,18 @@ module "compute" {
   officer_extra_environment  = var.officer_extra_environment
   admin_extra_environment    = var.admin_extra_environment
   queue_extra_environment    = var.queue_extra_environment
+}
+
+module "cost_schedule" {
+  source = "../../modules/cost-schedule"
+
+  project                        = var.project
+  environment                    = var.environment
+  ecs_cluster_name               = module.compute.cluster_name
+  db_instance_identifier         = module.data.db_instance_identifier
+  weekday_service_desired_counts = var.weekday_service_desired_counts
+  service_arns                   = module.compute.service_arns
+  enabled                        = var.cost_schedule_enabled
 }
 
 module "observability" {
