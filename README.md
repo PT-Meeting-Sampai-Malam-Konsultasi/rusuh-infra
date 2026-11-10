@@ -33,6 +33,33 @@ documentation repo. Terraform `>= 1.5`, AWS provider `~> 5.0`.
   domain needs a separate certificate in us-east-1, see the edge
   module README).
 
+## Production hardening
+
+This is a production-ready setup, not an evaluation-only one:
+
+- **Network:** ALB public, ECS tasks in private subnets with no public
+  IP, one NAT gateway per AZ, VPC endpoints for AWS services
+  (ECR, SQS, Secrets Manager, CloudWatch Logs, SSM, SES, S3), VPC
+  Flow Logs on.
+- **Data:** RDS Multi-AZ + deletion protection + 7-day automated
+  backups + final snapshot on delete; Valkey Multi-AZ with failover
+  and in-transit encryption; S3 versioning + encryption + public
+  access block.
+- **IAM:** one task role per service (least privilege — SQS send vs
+  receive, SES notification-only, S3 core+payment-only); secrets via
+  Secrets Manager, resolved by the execution role.
+- **Audit:** CloudTrail (multi-region, log file validation) + VPC Flow
+  Logs; CloudWatch alarms (ALB 5xx, DLQ depth) notify via SNS when
+  `alarm_email` is set.
+- **Backup/restore:** see `docs/runbook-backup-restore.md`.
+
+Known follow-ups (not in this repo yet): RDS-managed master password
+(the app reads `DATABASE_URL`, so the switch needs the app to fetch
+the password from Secrets Manager at runtime); Valkey client TLS
+(rusuh-core must use a `rediss://` `VALKEY_URL`, rusuh-queue/Go must
+enable TLS — team follow-up); HTTPS end-to-end requires the ACM
+certificate to be validated and `certificate_arn` set at apply time.
+
 ## Provisioning checklist (Q25)
 
 | Item | Status |

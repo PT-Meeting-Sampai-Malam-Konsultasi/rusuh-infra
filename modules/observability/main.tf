@@ -62,6 +62,26 @@ locals {
   )
 }
 
+# SNS topic for alarm notifications (Tier 2). Empty alarm_email = topic
+# is not created and the alarms fire without notifying anyone.
+resource "aws_sns_topic" "alarms" {
+  count = var.alarm_email != "" ? 1 : 0
+
+  name = "${var.project}-${var.environment}-alarms"
+
+  tags = {
+    Name = "${var.project}-${var.environment}-alarms"
+  }
+}
+
+resource "aws_sns_topic_subscription" "alarms_email" {
+  count = var.alarm_email != "" ? 1 : 0
+
+  topic_arn = aws_sns_topic.alarms[0].arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   alarm_name          = "${var.project}-${var.environment}-alb-5xx"
   comparison_operator = "GreaterThanThreshold"
@@ -72,6 +92,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   statistic           = "Sum"
   threshold           = var.alarm_5xx_threshold
   alarm_description   = "ALB target 5xx above threshold (demo)"
+  alarm_actions       = var.alarm_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   dimensions = {
     LoadBalancer = local.alb_dimension
   }
@@ -94,6 +115,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq_depth" {
   statistic           = "Maximum"
   threshold           = 0
   alarm_description   = "DLQ ${each.key} is non-empty (should stay empty)"
+  alarm_actions       = var.alarm_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   dimensions = {
     QueueName = element(split(":", each.value), 5)
   }
@@ -107,4 +129,86 @@ resource "aws_cloudwatch_metric_alarm" "dlq_depth" {
 resource "aws_cloudwatch_dashboard" "overview" {
   dashboard_name = local.dashboard_name
   dashboard_body = jsonencode({ widgets = local.widgets })
+}
+
+# ---------------------------------------------------------------------------
+# CloudTrail (Tier 3: audit). Account-wide API audit trail with log file
+# validation, delivered to a dedicated S3 bucket. One trail per account:
+# creating a second environment in the same account must reuse this trail
+# (or use a different name) instead of creating a duplicate.
+# ---------------------------------------------------------------------------
+data "aws_caller_identity" "current" {}
+
+resource "aws_s3_bucket" "cloudtrail" {
+  bucket = "${var.project}-${var.environment}-cloudtrail-${data.aws_caller_identity.current.account_id}"
+
+  tags = {
+    Name = "${var.project}-${var.environment}-cloudtrail"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "cloudtrail" {
+  bucket = aws_s3_bucket.cloudtrail.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail" {
+  bucket = aws_s3_bucket.cloudtrail.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "cloudtrail" {
+  bucket = aws_s3_bucket.cloudtrail.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_policy" "cloudtrail" {
+  bucket = aws_s3_bucket.cloudtrail.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AWSCloudTrailAclCheck"
+        Effect    = "Allow"
+        Principal = { Service = "cloudtrail.amazonaws.com" }
+        Action    = "s3:GetBucketAcl"
+        Resource  = aws_s3_bucket.cloudtrail.arn
+      },
+      {
+        Sid       = "AWSCloudTrailWrite"
+        Effect    = "Allow"
+        Principal = { Service = "cloudtrail.amazonaws.com" }
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.cloudtrail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Condition = {
+          StringEquals = { "s3:x-amz-acl" = "bucket-owner-full-control" }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_cloudtrail" "this" {
+  name                          = "${var.project}-${var.environment}-trail"
+  s3_bucket_name                = aws_s3_bucket.cloudtrail.id
+  include_global_service_events = true
+  is_multi_region_trail         = true
+  enable_log_file_validation    = true
+
+  tags = {
+    Name = "${var.project}-${var.environment}-trail"
+  }
 }

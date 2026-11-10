@@ -66,15 +66,15 @@ variable "db_backup_retention_period" {
 }
 
 variable "db_multi_az" {
-  description = "RDS Multi-AZ (off for demo cost; enable for production hardening)."
+  description = "RDS Multi-AZ (production: synchronous standby in another AZ, automatic failover). Off only for a short-lived throwaway environment."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "db_deletion_protection" {
-  description = "RDS deletion protection (off for demo iteration; enable for production)."
+  description = "RDS deletion protection (production: the database cannot be deleted accidentally; disable explicitly to tear down)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "valkey_node_type" {
@@ -96,9 +96,9 @@ variable "valkey_num_cache_clusters" {
 }
 
 variable "valkey_transit_encryption_enabled" {
-  description = "Valkey in-transit encryption (off for demo; requires client TLS when on)."
+  description = "Valkey in-transit encryption (production: on). Clients must connect with TLS: rusuh-core uses a rediss:// VALKEY_URL, rusuh-queue (Go) must enable TLS in its Valkey client. The queue client update is a team follow-up (David)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "valkey_auth_token" {

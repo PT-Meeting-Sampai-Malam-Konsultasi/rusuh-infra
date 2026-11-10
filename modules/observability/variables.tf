@@ -58,6 +58,12 @@ variable "alarm_5xx_evaluation_periods" {
   default     = 1
 }
 
+variable "alarm_email" {
+  description = "Email address that receives CloudWatch alarm notifications via SNS. Empty = alarms fire without notifying anyone (SNS topic is not created)."
+  type        = string
+  default     = ""
+}
+
 variable "dashboard_name" {
   description = "CloudWatch dashboard name. Empty = <project>-<environment>-overview."
   type        = string

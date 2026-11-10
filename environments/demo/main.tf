@@ -3,6 +3,7 @@ module "network" {
 
   project              = var.project
   environment          = var.environment
+  region               = var.region
   vpc_cidr             = var.vpc_cidr
   availability_zones   = var.availability_zones
   public_subnet_cidrs  = var.public_subnet_cidrs
@@ -92,10 +93,13 @@ module "compute" {
   vpc_id      = module.network.vpc_id
 
   alb_subnet_ids = module.network.public_subnet_ids
-  # Demo topology (NAT off): tasks in public subnets with public IPs.
-  # If NAT is enabled later, switch to private subnets + assign_public_ip = false.
-  ecs_subnet_ids   = module.network.public_subnet_ids
-  assign_public_ip = true
+  # Production topology: the ALB stays public, but the ECS tasks run in
+  # private subnets with no public IP. Tasks reach the internet (ECR,
+  # Midtrans, SES, SQS) through the per-AZ NAT gateways, and reach AWS
+  # services privately through the VPC endpoints. A task is only reachable
+  # through the ALB — never directly from the internet.
+  ecs_subnet_ids   = module.network.private_subnet_ids
+  assign_public_ip = false
 
   auth_image         = var.auth_image
   core_image         = var.core_image
@@ -152,4 +156,5 @@ module "observability" {
   core_service_name  = module.compute.core_service_name
   queue_service_name = module.compute.queue_service_name
   dlq_queue_arns     = module.messaging.dlq_arns
+  alarm_email        = var.alarm_email
 }

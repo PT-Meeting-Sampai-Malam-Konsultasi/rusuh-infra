@@ -8,6 +8,12 @@ variable "environment" {
   type        = string
 }
 
+variable "region" {
+  description = "AWS region (used for VPC endpoint service names)."
+  type        = string
+  default     = "ap-southeast-3"
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC."
   type        = string

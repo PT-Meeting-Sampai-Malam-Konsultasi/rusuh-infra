@@ -53,7 +53,7 @@ resource "aws_db_instance" "this" {
   multi_az                = var.db_multi_az
   backup_retention_period = var.db_backup_retention_period
   deletion_protection     = var.db_deletion_protection
-  skip_final_snapshot     = true
+  skip_final_snapshot     = false
   publicly_accessible     = false
 
   tags = {

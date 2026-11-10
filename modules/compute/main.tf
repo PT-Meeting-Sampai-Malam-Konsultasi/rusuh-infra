@@ -1054,7 +1054,7 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
-        Resource = [aws_iam_role.execution.arn, aws_iam_role.task.arn]
+        Resource = concat([aws_iam_role.execution.arn], [for r in aws_iam_role.task : r.arn])
       },
     ]
   })
@@ -1122,8 +1122,39 @@ resource "aws_iam_role_policy" "execution" {
   })
 }
 
+# Per-service task roles (Tier 2: least privilege). Each service gets its
+# own role, so a compromise or misconfiguration in one service cannot use
+# another service's AWS permissions. The split, by design:
+# - Every service: its OWN log group only, X-Ray, ECS Exec (SSM messages).
+# - SQS: notification + queue CONSUME (receive/delete); auth/core/payment/
+#   officer/admin only SEND (they enqueue work for notification/queue).
+# - SES: notification only (the sole email sender).
+# - S3: core + payment only (e-ticket files).
+# If a service later needs a permission it does not have, add it to its
+# branch below (one line) instead of widening the shared role.
+locals {
+  task_services = ["auth", "core", "payment", "notification", "officer", "admin", "queue"]
+
+  # Services that consume from SQS (receive + delete). The rest only send.
+  sqs_consumer_services = toset(["notification", "queue"])
+  # Services that read/write e-ticket files in S3.
+  s3_services = toset(["core", "payment"])
+
+  task_log_group_arns = {
+    auth         = aws_cloudwatch_log_group.auth.arn
+    core         = aws_cloudwatch_log_group.core.arn
+    payment      = aws_cloudwatch_log_group.payment.arn
+    notification = aws_cloudwatch_log_group.notification.arn
+    officer      = aws_cloudwatch_log_group.officer.arn
+    admin        = aws_cloudwatch_log_group.admin.arn
+    queue        = aws_cloudwatch_log_group.queue.arn
+  }
+}
+
 resource "aws_iam_role" "task" {
-  name = "${var.project}-${var.environment}-ecs-task"
+  for_each = toset(local.task_services)
+
+  name = "${var.project}-${var.environment}-ecs-task-${each.key}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -1135,30 +1166,24 @@ resource "aws_iam_role" "task" {
   })
 
   tags = {
-    Name = "${var.project}-${var.environment}-ecs-task"
+    Name = "${var.project}-${var.environment}-ecs-task-${each.key}"
   }
 }
 
 resource "aws_iam_role_policy" "task" {
-  name = "${var.project}-${var.environment}-ecs-task"
-  role = aws_iam_role.task.id
+  for_each = toset(local.task_services)
+
+  name = "${var.project}-${var.environment}-ecs-task-${each.key}"
+  role = aws_iam_role.task[each.key].id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
       [
         {
-          Effect = "Allow"
-          Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
-          Resource = [
-            "${aws_cloudwatch_log_group.auth.arn}:*",
-            "${aws_cloudwatch_log_group.core.arn}:*",
-            "${aws_cloudwatch_log_group.payment.arn}:*",
-            "${aws_cloudwatch_log_group.notification.arn}:*",
-            "${aws_cloudwatch_log_group.officer.arn}:*",
-            "${aws_cloudwatch_log_group.admin.arn}:*",
-            "${aws_cloudwatch_log_group.queue.arn}:*",
-          ]
+          Effect   = "Allow"
+          Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+          Resource = ["${local.task_log_group_arns[each.key]}:*"]
         },
         {
           Effect   = "Allow"
@@ -1186,15 +1211,15 @@ resource "aws_iam_role_policy" "task" {
       ],
       length(var.sqs_queue_arns) > 0 ? [{
         Effect   = "Allow"
-        Action   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+        Action   = contains(local.sqs_consumer_services, each.key) ? ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"] : ["sqs:SendMessage", "sqs:GetQueueAttributes"]
         Resource = var.sqs_queue_arns
       }] : [],
-      var.s3_bucket_arn != "" ? [{
+      var.s3_bucket_arn != "" && contains(local.s3_services, each.key) ? [{
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = ["${var.s3_bucket_arn}/*"]
       }] : [],
-      var.ses_identity_arn != "" ? [{
+      var.ses_identity_arn != "" && each.key == "notification" ? [{
         Effect   = "Allow"
         Action   = ["ses:SendEmail", "ses:SendRawEmail"]
         Resource = [var.ses_identity_arn]
@@ -1280,7 +1305,7 @@ resource "aws_ecs_task_definition" "auth" {
   cpu                      = tostring(var.auth_cpu)
   memory                   = tostring(var.auth_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["auth"].arn
 
   container_definitions = jsonencode([
     {
@@ -1316,7 +1341,7 @@ resource "aws_ecs_task_definition" "core" {
   cpu                      = tostring(var.core_cpu)
   memory                   = tostring(var.core_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["core"].arn
 
   container_definitions = jsonencode([
     {
@@ -1352,7 +1377,7 @@ resource "aws_ecs_task_definition" "payment" {
   cpu                      = tostring(var.payment_cpu)
   memory                   = tostring(var.payment_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["payment"].arn
 
   container_definitions = jsonencode([
     {
@@ -1388,7 +1413,7 @@ resource "aws_ecs_task_definition" "notification" {
   cpu                      = tostring(var.notification_cpu)
   memory                   = tostring(var.notification_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["notification"].arn
 
   container_definitions = jsonencode([
     {
@@ -1424,7 +1449,7 @@ resource "aws_ecs_task_definition" "officer" {
   cpu                      = tostring(var.officer_cpu)
   memory                   = tostring(var.officer_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["officer"].arn
 
   container_definitions = jsonencode([
     {
@@ -1460,7 +1485,7 @@ resource "aws_ecs_task_definition" "admin" {
   cpu                      = tostring(var.admin_cpu)
   memory                   = tostring(var.admin_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["admin"].arn
 
   container_definitions = jsonencode([
     {
@@ -1496,7 +1521,7 @@ resource "aws_ecs_task_definition" "queue" {
   cpu                      = tostring(var.queue_cpu)
   memory                   = tostring(var.queue_memory)
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task["queue"].arn
 
   container_definitions = jsonencode([
     {

@@ -41,9 +41,9 @@ variable "private_subnet_cidrs" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Create a NAT Gateway for private subnets (off by default: ~$30+/month; see modules/network/README.md)."
+  description = "Create a NAT Gateway per AZ for private subnets (production: on). ~$32/month per gateway plus data processing. Off only for a short-lived throwaway environment."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "queues" {
@@ -166,6 +166,12 @@ variable "queue_port" {
 
 variable "acm_certificate_arn_us_east_1" {
   description = "ACM certificate ARN for the API domain in us-east-1 (CloudFront custom domain). Empty = no custom domain on CloudFront yet."
+  type        = string
+  default     = ""
+}
+
+variable "alarm_email" {
+  description = "Email address that receives CloudWatch alarm notifications via SNS. Empty = alarms fire without notifying anyone."
   type        = string
   default     = ""
 }
