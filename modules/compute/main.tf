@@ -190,7 +190,7 @@ locals {
     queue   = { security_group_id = aws_security_group.queue.id, port = var.queue_port }
   }
 
-  # All service security groups (used for egress and for the data module).
+  # All service security groups (used for egress and for the DB/Valkey ingress rules below).
   service_security_group_ids = {
     auth         = aws_security_group.auth.id
     core         = aws_security_group.core.id
@@ -263,6 +263,36 @@ resource "aws_security_group_rule" "core_to_payment" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.core.id
   description              = "core to payment: start a payment"
+}
+
+# Ingress to the data layer, owned here (not in the data module). The data
+# module creates the DB/Valkey security groups but no ingress rules, so it
+# never needs the ECS security groups as an input — the dependency is
+# one-way (compute -> data) and no cycle can form. Access is the same as
+# before: every ECS service group may reach Postgres (5432) and Valkey
+# (6379); tightening that per service is a separate change.
+resource "aws_security_group_rule" "db_ingress" {
+  for_each = var.db_security_group_id != "" ? local.service_security_group_ids : {}
+
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = var.db_security_group_id
+  source_security_group_id = each.value
+  description              = "ECS ${each.key} to Postgres"
+}
+
+resource "aws_security_group_rule" "valkey_ingress" {
+  for_each = var.valkey_security_group_id != "" ? local.service_security_group_ids : {}
+
+  type                     = "ingress"
+  from_port                = 6379
+  to_port                  = 6379
+  protocol                 = "tcp"
+  security_group_id        = var.valkey_security_group_id
+  source_security_group_id = each.value
+  description              = "ECS ${each.key} to Valkey"
 }
 
 resource "aws_service_discovery_http_namespace" "this" {
@@ -737,7 +767,7 @@ resource "aws_lb_listener_rule" "admin_https" {
 # (see the deploy role below and ci-cd/README.md).
 resource "aws_ecr_repository" "auth" {
   name                 = "${var.project}-auth"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -750,7 +780,7 @@ resource "aws_ecr_repository" "auth" {
 
 resource "aws_ecr_repository" "core" {
   name                 = "${var.project}-core"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -763,7 +793,7 @@ resource "aws_ecr_repository" "core" {
 
 resource "aws_ecr_repository" "payment" {
   name                 = "${var.project}-payment"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -776,7 +806,7 @@ resource "aws_ecr_repository" "payment" {
 
 resource "aws_ecr_repository" "notification" {
   name                 = "${var.project}-notification"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -789,7 +819,7 @@ resource "aws_ecr_repository" "notification" {
 
 resource "aws_ecr_repository" "officer" {
   name                 = "${var.project}-officer"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -802,7 +832,7 @@ resource "aws_ecr_repository" "officer" {
 
 resource "aws_ecr_repository" "admin" {
   name                 = "${var.project}-admin"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -815,7 +845,7 @@ resource "aws_ecr_repository" "admin" {
 
 resource "aws_ecr_repository" "queue" {
   name                 = "${var.project}-queue"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
@@ -1548,8 +1578,10 @@ resource "aws_ecs_task_definition" "queue" {
       # localhost:4317/4318 and exports to X-Ray + CloudWatch using
       # the image's default ECS config. Not essential: if the
       # collector stops, the queue keeps serving (spans are dropped).
-      name        = "adot"
-      image       = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      name = "adot"
+      # Pinned (not :latest): a floating tag can silently change what is
+      # deployed. Bump deliberately after verifying the new version.
+      image       = "public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0"
       essential   = false
       stopTimeout = 30
       portMappings = [

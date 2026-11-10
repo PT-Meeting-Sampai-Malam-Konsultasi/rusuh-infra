@@ -76,12 +76,11 @@ module "edge" {
 module "data" {
   source = "../../modules/data"
 
-  project                = var.project
-  environment            = var.environment
-  vpc_id                 = module.network.vpc_id
-  private_subnet_ids     = module.network.private_subnet_ids
-  ecs_security_group_ids = values(module.compute.ecs_security_group_ids)
-  db_password            = var.db_password
+  project            = var.project
+  environment        = var.environment
+  vpc_id             = module.network.vpc_id
+  private_subnet_ids = module.network.private_subnet_ids
+  db_password        = var.db_password
 }
 
 module "compute" {
@@ -118,11 +117,13 @@ module "compute" {
 
   certificate_arn = var.certificate_arn
 
-  db_address  = module.data.db_address
-  db_port     = module.data.db_port
-  db_name     = module.data.db_name
-  valkey_host = module.data.valkey_primary_endpoint_address
-  valkey_port = module.data.valkey_port
+  db_security_group_id     = module.data.db_security_group_id
+  valkey_security_group_id = module.data.valkey_security_group_id
+  db_address               = module.data.db_address
+  db_port                  = module.data.db_port
+  db_name                  = module.data.db_name
+  valkey_host              = module.data.valkey_primary_endpoint_address
+  valkey_port              = module.data.valkey_port
 
   sqs_notification_queue_url = module.messaging.queue_urls["notification"]
   sqs_queue_arns             = values(module.messaging.queue_arns)
@@ -157,4 +158,8 @@ module "observability" {
   queue_service_name = module.compute.queue_service_name
   dlq_queue_arns     = module.messaging.dlq_arns
   alarm_email        = var.alarm_email
+  # CloudTrail stays off: the account baseline trail (soldev-lz-trail,
+  # multi-region) already covers audit. Enable only if this environment
+  # needs its own trail in addition to the baseline.
+  enable_cloudtrail = false
 }

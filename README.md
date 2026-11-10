@@ -43,22 +43,32 @@ This is a production-ready setup, not an evaluation-only one:
   Flow Logs on.
 - **Data:** RDS Multi-AZ + deletion protection + 7-day automated
   backups + final snapshot on delete; Valkey Multi-AZ with failover
-  and in-transit encryption; S3 versioning + encryption + public
-  access block.
+  (in-transit encryption is OFF by default — enable only after the
+  clients are verified TLS-compatible, see below); S3 versioning +
+  encryption + public access block.
 - **IAM:** one task role per service (least privilege — SQS send vs
   receive, SES notification-only, S3 core+payment-only); secrets via
-  Secrets Manager, resolved by the execution role.
-- **Audit:** CloudTrail (multi-region, log file validation) + VPC Flow
-  Logs; CloudWatch alarms (ALB 5xx, DLQ depth) notify via SNS when
-  `alarm_email` is set.
+  Secrets Manager, resolved by the execution role. ECR repositories
+  are immutable (`IMMUTABLE`); the ADOT sidecar image is pinned
+  (`aws-otel-collector:v0.51.0`, not `:latest`).
+- **Audit:** VPC Flow Logs on; CloudTrail is OPT-IN (off by default —
+  the account baseline trail `soldev-lz-trail`, multi-region, already
+  covers audit; enable `enable_cloudtrail` only if this environment
+  needs its own trail). CloudWatch alarms (ALB 5xx, DLQ depth) notify
+  via SNS — `alarm_email` is required, and the recipient must confirm
+  the SNS subscription after apply.
 - **Backup/restore:** see `docs/runbook-backup-restore.md`.
 
 Known follow-ups (not in this repo yet): RDS-managed master password
 (the app reads `DATABASE_URL`, so the switch needs the app to fetch
-the password from Secrets Manager at runtime); Valkey client TLS
-(rusuh-core must use a `rediss://` `VALKEY_URL`, rusuh-queue/Go must
-enable TLS — team follow-up); HTTPS end-to-end requires the ACM
-certificate to be validated and `certificate_arn` set at apply time.
+the password from Secrets Manager at runtime); Valkey in-transit
+encryption (off until rusuh-core uses a `rediss://` `VALKEY_URL` and
+rusuh-queue/Go enables TLS — team follow-up); HTTPS end-to-end
+requires the ACM certificate to be validated and `certificate_arn`
+set at apply time. The data-layer security groups carry no ingress
+rules in the data module — the compute module creates the ingress
+rules (DB 5432, Valkey 6379) from the ECS security groups, so the
+dependency is one-way (compute → data) and no cycle can form.
 
 ## Provisioning checklist (Q25)
 

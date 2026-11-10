@@ -171,9 +171,8 @@ variable "acm_certificate_arn_us_east_1" {
 }
 
 variable "alarm_email" {
-  description = "Email address that receives CloudWatch alarm notifications via SNS. Empty = alarms fire without notifying anyone."
+  description = "Email address that receives CloudWatch alarm notifications via SNS. Required (no default): enterprise readiness needs a mandatory alert endpoint. The recipient must confirm the SNS subscription after apply."
   type        = string
-  default     = ""
 }
 
 variable "waf_rate_limit" {

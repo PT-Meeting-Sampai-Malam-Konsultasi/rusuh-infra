@@ -1,3 +1,13 @@
+output "db_security_group_id" {
+  description = "Security group ID of Postgres. The compute module creates the ingress rules on it (which ECS tasks may connect)."
+  value       = aws_security_group.db.id
+}
+
+output "valkey_security_group_id" {
+  description = "Security group ID of Valkey. The compute module creates the ingress rules on it."
+  value       = aws_security_group.valkey.id
+}
+
 output "db_endpoint" {
   value = aws_db_instance.this.endpoint
 }

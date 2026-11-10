@@ -320,6 +320,18 @@ variable "certificate_arn" {
   default     = ""
 }
 
+variable "db_security_group_id" {
+  description = "Security group ID of Postgres (from the data module). The compute module creates the ingress rules on it, so the data module never needs the ECS security groups."
+  type        = string
+  default     = ""
+}
+
+variable "valkey_security_group_id" {
+  description = "Security group ID of Valkey (from the data module). The compute module creates the ingress rules on it."
+  type        = string
+  default     = ""
+}
+
 variable "db_address" {
   description = "Postgres host (from the data module)."
   type        = string

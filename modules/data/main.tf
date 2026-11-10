@@ -7,21 +7,15 @@ resource "aws_db_subnet_group" "this" {
   }
 }
 
+# The DB/Valkey security groups carry no ingress rules here. The ingress
+# rules (which ECS tasks may reach them) are created by the compute module,
+# which owns the ECS security groups. This keeps the dependency one-way
+# (compute -> data) instead of the two modules needing each other's
+# outputs, so no dependency cycle can form.
 resource "aws_security_group" "db" {
   name        = "${var.project}-${var.environment}-db-sg"
   description = "Postgres access from ECS tasks only"
   vpc_id      = var.vpc_id
-
-  dynamic "ingress" {
-    for_each = var.ecs_security_group_ids
-
-    content {
-      from_port       = 5432
-      to_port         = 5432
-      protocol        = "tcp"
-      security_groups = [ingress.value]
-    }
-  }
 
   egress {
     from_port   = 0
@@ -74,17 +68,6 @@ resource "aws_security_group" "valkey" {
   name        = "${var.project}-${var.environment}-valkey-sg"
   description = "Valkey access from ECS tasks only"
   vpc_id      = var.vpc_id
-
-  dynamic "ingress" {
-    for_each = var.ecs_security_group_ids
-
-    content {
-      from_port       = 6379
-      to_port         = 6379
-      protocol        = "tcp"
-      security_groups = [ingress.value]
-    }
-  }
 
   egress {
     from_port   = 0

@@ -18,11 +18,6 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "ecs_security_group_ids" {
-  description = "Security groups of the ECS tasks; the only groups allowed to reach Postgres and Valkey (from the compute module, one per service)."
-  type        = list(string)
-}
-
 variable "db_name" {
   description = "Postgres database name."
   type        = string
@@ -96,9 +91,9 @@ variable "valkey_num_cache_clusters" {
 }
 
 variable "valkey_transit_encryption_enabled" {
-  description = "Valkey in-transit encryption (production: on). Clients must connect with TLS: rusuh-core uses a rediss:// VALKEY_URL, rusuh-queue (Go) must enable TLS in its Valkey client. The queue client update is a team follow-up (David)."
+  description = "Valkey in-transit encryption. OFF by default: do not enable until the clients are verified TLS-compatible (rusuh-core must use a rediss:// VALKEY_URL, rusuh-queue (Go) must enable TLS in its Valkey client). Enabling it before the clients support TLS breaks their Valkey connections."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "valkey_auth_token" {

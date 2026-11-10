@@ -62,11 +62,11 @@ locals {
   )
 }
 
-# SNS topic for alarm notifications (Tier 2). Empty alarm_email = topic
-# is not created and the alarms fire without notifying anyone.
+# SNS topic for alarm notifications (Tier 2). Always created: the alert
+# endpoint is mandatory (alarm_email is a required variable). The
+# recipient must confirm the subscription via the email AWS sends after
+# apply, or notifications are not delivered.
 resource "aws_sns_topic" "alarms" {
-  count = var.alarm_email != "" ? 1 : 0
-
   name = "${var.project}-${var.environment}-alarms"
 
   tags = {
@@ -75,9 +75,7 @@ resource "aws_sns_topic" "alarms" {
 }
 
 resource "aws_sns_topic_subscription" "alarms_email" {
-  count = var.alarm_email != "" ? 1 : 0
-
-  topic_arn = aws_sns_topic.alarms[0].arn
+  topic_arn = aws_sns_topic.alarms.arn
   protocol  = "email"
   endpoint  = var.alarm_email
 }
@@ -92,7 +90,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   statistic           = "Sum"
   threshold           = var.alarm_5xx_threshold
   alarm_description   = "ALB target 5xx above threshold (demo)"
-  alarm_actions       = var.alarm_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  alarm_actions       = [aws_sns_topic.alarms.arn]
   dimensions = {
     LoadBalancer = local.alb_dimension
   }
@@ -115,7 +113,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq_depth" {
   statistic           = "Maximum"
   threshold           = 0
   alarm_description   = "DLQ ${each.key} is non-empty (should stay empty)"
-  alarm_actions       = var.alarm_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  alarm_actions       = [aws_sns_topic.alarms.arn]
   dimensions = {
     QueueName = element(split(":", each.value), 5)
   }
@@ -133,13 +131,17 @@ resource "aws_cloudwatch_dashboard" "overview" {
 
 # ---------------------------------------------------------------------------
 # CloudTrail (Tier 3: audit). Account-wide API audit trail with log file
-# validation, delivered to a dedicated S3 bucket. One trail per account:
-# creating a second environment in the same account must reuse this trail
-# (or use a different name) instead of creating a duplicate.
+# validation, delivered to a dedicated S3 bucket. OPT-IN (default off):
+# the account already has the baseline multi-region trail
+# "soldev-lz-trail", so creating a second multi-region trail here would
+# duplicate every event and its cost. Enable only if this environment
+# needs its own trail in addition to the baseline (set
+# enable_cloudtrail = true).
 # ---------------------------------------------------------------------------
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "cloudtrail" {
+  count  = var.enable_cloudtrail ? 1 : 0
   bucket = "${var.project}-${var.environment}-cloudtrail-${data.aws_caller_identity.current.account_id}"
 
   tags = {
@@ -148,7 +150,8 @@ resource "aws_s3_bucket" "cloudtrail" {
 }
 
 resource "aws_s3_bucket_versioning" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
+  count  = var.enable_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
 
   versioning_configuration {
     status = "Enabled"
@@ -156,7 +159,8 @@ resource "aws_s3_bucket_versioning" "cloudtrail" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
+  count  = var.enable_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -166,7 +170,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail" {
 }
 
 resource "aws_s3_bucket_public_access_block" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
+  count  = var.enable_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -175,7 +180,8 @@ resource "aws_s3_bucket_public_access_block" "cloudtrail" {
 }
 
 resource "aws_s3_bucket_policy" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
+  count  = var.enable_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -185,14 +191,14 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
         Effect    = "Allow"
         Principal = { Service = "cloudtrail.amazonaws.com" }
         Action    = "s3:GetBucketAcl"
-        Resource  = aws_s3_bucket.cloudtrail.arn
+        Resource  = aws_s3_bucket.cloudtrail[0].arn
       },
       {
         Sid       = "AWSCloudTrailWrite"
         Effect    = "Allow"
         Principal = { Service = "cloudtrail.amazonaws.com" }
         Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.cloudtrail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Resource  = "${aws_s3_bucket.cloudtrail[0].arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
         Condition = {
           StringEquals = { "s3:x-amz-acl" = "bucket-owner-full-control" }
         }
@@ -202,8 +208,9 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
 }
 
 resource "aws_cloudtrail" "this" {
+  count                         = var.enable_cloudtrail ? 1 : 0
   name                          = "${var.project}-${var.environment}-trail"
-  s3_bucket_name                = aws_s3_bucket.cloudtrail.id
+  s3_bucket_name                = aws_s3_bucket.cloudtrail[0].id
   include_global_service_events = true
   is_multi_region_trail         = true
   enable_log_file_validation    = true
