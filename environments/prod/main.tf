@@ -164,7 +164,7 @@ module "compute" {
   payment_extra_environment  = var.payment_extra_environment
   officer_extra_environment  = var.officer_extra_environment
   admin_extra_environment    = var.admin_extra_environment
-  queue_extra_environment    = var.queue_extra_environment
+  queue_extra_environment    = merge(local.queue_environment, var.queue_extra_environment)
 }
 
 module "cost_schedule" {
