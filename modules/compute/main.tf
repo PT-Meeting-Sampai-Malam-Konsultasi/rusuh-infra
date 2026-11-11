@@ -74,6 +74,15 @@ resource "aws_cloudwatch_log_group" "admin" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "dukcapil_mock" {
+  name              = "/ecs/${var.project}-${var.environment}-dukcapil-mock"
+  retention_in_days = var.log_retention_in_days
+
+  tags = {
+    Name = "${var.project}-${var.environment}-dukcapil-mock-logs"
+  }
+}
+
 resource "aws_security_group" "alb" {
   name        = "${var.project}-${var.environment}-alb-sg"
   description = "ALB: public HTTP/HTTPS"
@@ -179,6 +188,16 @@ resource "aws_security_group" "queue" {
   }
 }
 
+resource "aws_security_group" "dukcapil_mock" {
+  name        = "${var.project}-${var.environment}-dukcapil-mock-sg"
+  description = "ECS tasks for the Dukcapil NIK-verification mock (internal only)"
+  vpc_id      = var.vpc_id
+
+  tags = {
+    Name = "${var.project}-${var.environment}-dukcapil-mock-sg"
+  }
+}
+
 locals {
   # ALB-backed services and the port the ALB reaches them on.
   alb_services = {
@@ -226,6 +245,20 @@ resource "aws_security_group_rule" "egress" {
   protocol    = "-1"
   cidr_blocks = ["0.0.0.0/0"]
   description = "Outbound for image pull, SES, SQS, and service calls"
+}
+
+# The Dukcapil mock deliberately stays out of service_security_group_ids
+# (it needs no Postgres/Valkey ingress), so it gets its own egress rule —
+# without it the task cannot even pull its image from ECR.
+resource "aws_security_group_rule" "dukcapil_mock_egress" {
+  type              = "egress"
+  security_group_id = aws_security_group.dukcapil_mock.id
+
+  from_port   = 0
+  to_port     = 0
+  protocol    = "-1"
+  cidr_blocks = ["0.0.0.0/0"]
+  description = "Outbound for image pull (ECR, CloudWatch Logs)"
 }
 
 # Private service-to-service calls (via Service Connect, never the
@@ -856,6 +889,19 @@ resource "aws_ecr_repository" "queue" {
   }
 }
 
+resource "aws_ecr_repository" "dukcapil_mock" {
+  name                 = "${var.project}-dukcapil-mock"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name = "${var.project}-${var.environment}-ecr-dukcapil-mock"
+  }
+}
+
 resource "aws_ecr_lifecycle_policy" "auth" {
   repository = aws_ecr_repository.auth.name
 
@@ -1154,7 +1200,7 @@ resource "aws_iam_role_policy" "execution" {
 # If a service later needs a permission it does not have, add it to its
 # branch below (one line) instead of widening the shared role.
 locals {
-  task_services = ["auth", "core", "payment", "notification", "officer", "admin", "queue"]
+  task_services = ["auth", "core", "payment", "notification", "officer", "admin", "queue", "dukcapil-mock"]
 
   # Services that consume from SQS (receive + delete). The rest only send.
   sqs_consumer_services = toset(["notification", "queue"])
@@ -1162,13 +1208,14 @@ locals {
   s3_services = toset(["core", "payment"])
 
   task_log_group_arns = {
-    auth         = aws_cloudwatch_log_group.auth.arn
-    core         = aws_cloudwatch_log_group.core.arn
-    payment      = aws_cloudwatch_log_group.payment.arn
-    notification = aws_cloudwatch_log_group.notification.arn
-    officer      = aws_cloudwatch_log_group.officer.arn
-    admin        = aws_cloudwatch_log_group.admin.arn
-    queue        = aws_cloudwatch_log_group.queue.arn
+    auth          = aws_cloudwatch_log_group.auth.arn
+    core          = aws_cloudwatch_log_group.core.arn
+    payment       = aws_cloudwatch_log_group.payment.arn
+    notification  = aws_cloudwatch_log_group.notification.arn
+    officer       = aws_cloudwatch_log_group.officer.arn
+    admin         = aws_cloudwatch_log_group.admin.arn
+    queue         = aws_cloudwatch_log_group.queue.arn
+    dukcapil-mock = aws_cloudwatch_log_group.dukcapil_mock.arn
   }
 }
 
@@ -1293,51 +1340,59 @@ locals {
     var.valkey_auth_token != null ? { VALKEY_PASSWORD = var.valkey_auth_token } : {},
   )
 
-  shared_optional_environment = merge(
-    var.sqs_notification_queue_url != "" ? { SQS_NOTIFICATION_URL = var.sqs_notification_queue_url } : {},
-    var.s3_bucket_name != "" ? { S3_BUCKET = var.s3_bucket_name } : {},
-    var.ses_domain != "" ? { SES_DOMAIN = var.ses_domain } : {},
-  )
-
+  # Per-app SQS/S3/SES wiring under the env var names each app actually
+  # reads (verified in apps/*/src/infrastructure/config/environment.js).
+  # The former generic names (SQS_NOTIFICATION_URL, S3_BUCKET, SES_DOMAIN)
+  # matched no consumer and left the core SQS event bus and the auth mailer
+  # unwired. Queue topology: otp (auth -> notification), notification
+  # (core -> notification), empty_slot (core -> queue service).
   auth_environment = merge(
     local.node_environment,
-    local.shared_optional_environment,
+    { for k, v in { SQS_QUEUE_URL = try(var.sqs_queue_urls["otp"], "") } : k => v if v != "" },
     var.auth_extra_environment,
   )
 
   core_environment = merge(
     local.node_environment,
-    local.shared_optional_environment,
+    {
+      for k, v in {
+        SQS_NOTIFICATION_QUEUE_URL = try(var.sqs_queue_urls["notification"], "")
+        SQS_EMPTY_SLOT_QUEUE_URL   = try(var.sqs_queue_urls["empty_slot"], "")
+      } : k => v if v != ""
+    },
     var.core_extra_environment,
   )
 
   payment_environment = merge(
     local.node_environment,
-    local.shared_optional_environment,
     var.payment_extra_environment,
   )
 
   notification_environment = merge(
     local.node_environment,
-    local.shared_optional_environment,
+    {
+      for k, v in {
+        SQS_OTP_QUEUE_URL   = try(var.sqs_queue_urls["otp"], "")
+        SQS_EMAIL_QUEUE_URL = try(var.sqs_queue_urls["notification"], "")
+      } : k => v if v != ""
+    },
+    var.s3_bucket_name != "" ? { S3_TICKET_BUCKET = var.s3_bucket_name } : {},
+    var.ses_domain != "" ? { SES_FROM_EMAIL = "noreply@${var.ses_domain}" } : {},
     var.notification_extra_environment,
   )
 
   officer_environment = merge(
     local.node_environment,
-    local.shared_optional_environment,
     var.officer_extra_environment,
   )
 
   admin_environment = merge(
     local.node_environment,
-    local.shared_optional_environment,
     var.admin_extra_environment,
   )
 
   queue_environment = merge(
     local.queue_valkey_environment,
-    local.shared_optional_environment,
     # ADOT sidecar (same task, localhost): queue exports OTLP to it.
     { OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317" },
     var.queue_extra_environment,
@@ -1576,7 +1631,10 @@ resource "aws_ecs_task_definition" "queue" {
       essential   = true
       stopTimeout = 45
       portMappings = [
-        { containerPort = var.queue_port, protocol = "tcp", name = "queue" }
+        { containerPort = var.queue_port, protocol = "tcp", name = "queue" },
+        # Operator API (ADMIN_PORT): admin calls it over Service Connect
+        # (dns_name "queue-admin"), never through the public ALB.
+        { containerPort = 8081, protocol = "tcp", name = "queue-admin" }
       ]
       environment = [for k, v in local.queue_environment : { name = k, value = v }]
       secrets     = [for k, v in var.queue_secrets : { name = k, valueFrom = v }]
@@ -1618,6 +1676,45 @@ resource "aws_ecs_task_definition" "queue" {
 
   tags = {
     Name = "${var.project}-${var.environment}-queue-task"
+  }
+}
+
+# Mock of the Dukcapil NIK-verification third party (rusuh-mock/
+# service-dukcapil). Stateless Express app: no database, no Valkey, no
+# AWS SDK calls — only logs, hence the plain task role it inherits from
+# task_services. Reached by core over Service Connect as dukcapil:8080.
+resource "aws_ecs_task_definition" "dukcapil_mock" {
+  family                   = "${var.project}-${var.environment}-dukcapil-mock"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = tostring(var.dukcapil_mock_cpu)
+  memory                   = tostring(var.dukcapil_mock_memory)
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task["dukcapil-mock"].arn
+
+  container_definitions = jsonencode([
+    {
+      name        = "dukcapil-mock"
+      image       = var.dukcapil_mock_image
+      essential   = true
+      stopTimeout = 30
+      portMappings = [
+        { containerPort = var.dukcapil_mock_port, protocol = "tcp", name = "dukcapil-mock" }
+      ]
+      environment = []
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.dukcapil_mock.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${var.project}-${var.environment}-dukcapil-mock-task"
   }
 }
 
@@ -1952,6 +2049,18 @@ resource "aws_ecs_service" "queue" {
         dns_name = "queue"
       }
     }
+
+    # Operator API alias: admin reaches queue's ADMIN_PORT without the
+    # admin mux ever being exposed on the public ALB.
+    service {
+      port_name      = "queue-admin"
+      discovery_name = "queue-admin"
+
+      client_alias {
+        port     = 8081
+        dns_name = "queue-admin"
+      }
+    }
   }
 
   load_balancer {
@@ -1974,6 +2083,52 @@ resource "aws_ecs_service" "queue" {
 
   tags = {
     Name = "${var.project}-${var.environment}-queue-service"
+  }
+}
+
+resource "aws_ecs_service" "dukcapil_mock" {
+  name            = "${var.project}-${var.environment}-dukcapil-mock"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.dukcapil_mock.arn
+  desired_count   = var.dukcapil_mock_desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = var.ecs_subnet_ids
+    security_groups  = [aws_security_group.dukcapil_mock.id]
+    assign_public_ip = var.assign_public_ip
+  }
+
+  service_connect_configuration {
+    enabled   = true
+    namespace = aws_service_discovery_http_namespace.this.arn
+
+    service {
+      port_name      = "dukcapil-mock"
+      discovery_name = "dukcapil-mock"
+
+      client_alias {
+        port     = var.dukcapil_mock_port
+        dns_name = "dukcapil"
+      }
+    }
+  }
+
+  # Mock of a third party: internal only — no load balancer block.
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  enable_execute_command = true
+
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
+
+  tags = {
+    Name = "${var.project}-${var.environment}-dukcapil-mock-service"
   }
 }
 

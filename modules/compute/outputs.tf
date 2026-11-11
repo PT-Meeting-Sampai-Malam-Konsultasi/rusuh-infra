@@ -58,13 +58,14 @@ output "admin_target_group_arn" {
 output "service_arns" {
   description = "ECS service ARNs keyed by service name."
   value = {
-    auth         = aws_ecs_service.auth.id
-    core         = aws_ecs_service.core.id
-    payment      = aws_ecs_service.payment.id
-    notification = aws_ecs_service.notification.id
-    officer      = aws_ecs_service.officer.id
-    admin        = aws_ecs_service.admin.id
-    queue        = aws_ecs_service.queue.id
+    auth          = aws_ecs_service.auth.id
+    core          = aws_ecs_service.core.id
+    payment       = aws_ecs_service.payment.id
+    notification  = aws_ecs_service.notification.id
+    officer       = aws_ecs_service.officer.id
+    admin         = aws_ecs_service.admin.id
+    queue         = aws_ecs_service.queue.id
+    dukcapil-mock = aws_ecs_service.dukcapil_mock.id
   }
 }
 

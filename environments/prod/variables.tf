@@ -47,7 +47,7 @@ variable "enable_nat_gateway" {
 }
 
 variable "queues" {
-  description = "Queues for the messaging module (default includes notification; the compute wiring assumes a 'notification' queue exists — keep it when overriding)."
+  description = "Queues for the messaging module. Topology: otp (auth -> notification), notification (core -> notification), empty_slot (core -> queue service)."
   type = map(object({
     visibility_timeout_seconds = optional(number, 300)
     message_retention_seconds  = optional(number, 1209600)
@@ -55,6 +55,8 @@ variable "queues" {
   }))
   default = {
     notification = {}
+    otp          = {}
+    empty_slot   = {}
   }
 }
 
@@ -140,6 +142,18 @@ variable "queue_image" {
   description = "Container image for service-queue. Empty uses bootstrap_image while desired count is zero."
   type        = string
   default     = ""
+}
+
+variable "dukcapil_mock_image" {
+  description = "Container image for the Dukcapil NIK-verification mock (rusuh-mock/service-dukcapil). Empty uses bootstrap_image."
+  type        = string
+  default     = ""
+}
+
+variable "dukcapil_mock_desired_count" {
+  description = "Initial ECS desired count for the Dukcapil mock."
+  type        = number
+  default     = 0
 }
 
 variable "auth_port" {
@@ -233,16 +247,17 @@ variable "autoscaling_min_capacity" {
 }
 
 variable "weekday_service_desired_counts" {
-  description = "ECS service desired counts set at 06:00 WIB on weekdays by the cost scheduler."
+  description = "ECS service desired counts set at 06:00 WIB on weekdays by the cost scheduler. Keys must match compute.service_arns."
   type        = map(number)
   default = {
-    auth         = 1
-    core         = 1
-    payment      = 1
-    notification = 1
-    officer      = 1
-    admin        = 1
-    queue        = 1
+    auth          = 1
+    core          = 1
+    payment       = 1
+    notification  = 1
+    officer       = 1
+    admin         = 1
+    queue         = 1
+    dukcapil-mock = 1
   }
 }
 
