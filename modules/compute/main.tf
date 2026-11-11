@@ -1058,7 +1058,12 @@ resource "aws_iam_role" "deploy" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
+            # The org uses GitHub's immutable subjects (owner@id/repo@id), so
+            # a rename can't reuse the trust; the name-only forms stay in case
+            # the org setting is turned off again.
             "token.actions.githubusercontent.com:sub" = [
+              "repo:PT-Meeting-Sampai-Malam-Konsultasi@343369600/rusuh-core@1430487010:environment:production",
+              "repo:PT-Meeting-Sampai-Malam-Konsultasi@343369600/rusuh-queue@1430486758:environment:production",
               "repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-core:environment:production",
               "repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-queue:environment:production",
             ]
