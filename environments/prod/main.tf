@@ -107,26 +107,28 @@ module "compute" {
   ecs_subnet_ids   = module.network.private_subnet_ids
   assign_public_ip = false
 
-  auth_image         = var.auth_image != "" ? var.auth_image : var.bootstrap_image
-  core_image         = var.core_image != "" ? var.core_image : var.bootstrap_image
-  payment_image      = var.payment_image != "" ? var.payment_image : var.bootstrap_image
-  notification_image = var.notification_image != "" ? var.notification_image : var.bootstrap_image
-  officer_image      = var.officer_image != "" ? var.officer_image : var.bootstrap_image
-  admin_image        = var.admin_image != "" ? var.admin_image : var.bootstrap_image
-  queue_image        = var.queue_image != "" ? var.queue_image : var.bootstrap_image
-  auth_port          = var.auth_port
-  core_port          = var.core_port
-  payment_port       = var.payment_port
-  notification_port  = var.notification_port
-  officer_port       = var.officer_port
-  admin_port         = var.admin_port
-  queue_port         = var.queue_port
+  auth_image          = var.auth_image != "" ? var.auth_image : var.bootstrap_image
+  core_image          = var.core_image != "" ? var.core_image : var.bootstrap_image
+  payment_image       = var.payment_image != "" ? var.payment_image : var.bootstrap_image
+  notification_image  = var.notification_image != "" ? var.notification_image : var.bootstrap_image
+  officer_image       = var.officer_image != "" ? var.officer_image : var.bootstrap_image
+  admin_image         = var.admin_image != "" ? var.admin_image : var.bootstrap_image
+  queue_image         = var.queue_image != "" ? var.queue_image : var.bootstrap_image
+  dukcapil_mock_image = var.dukcapil_mock_image != "" ? var.dukcapil_mock_image : var.bootstrap_image
+  auth_port           = var.auth_port
+  core_port           = var.core_port
+  payment_port        = var.payment_port
+  notification_port   = var.notification_port
+  officer_port        = var.officer_port
+  admin_port          = var.admin_port
+  queue_port          = var.queue_port
 
   certificate_arn = var.certificate_arn
 
   core_desired_count         = var.core_desired_count
   queue_desired_count        = var.queue_desired_count
   autoscaling_min_capacity   = var.autoscaling_min_capacity
+  dukcapil_mock_desired_count = var.dukcapil_mock_desired_count
   auth_desired_count         = var.auth_desired_count
   payment_desired_count      = var.payment_desired_count
   notification_desired_count = var.notification_desired_count
@@ -135,7 +137,7 @@ module "compute" {
 
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id
-  database_url_secret_arn  = module.secrets.secret_arns["database-url"]
+  database_url_secret_arn  = module.secrets.secret_arns["database-url-node"]
   db_address               = module.data.db_address
   db_port                  = module.data.db_port
   db_name                  = module.data.db_name
@@ -146,25 +148,29 @@ module "compute" {
   valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
   valkey_auth_token                 = var.valkey_auth_token
 
-  sqs_notification_queue_url = module.messaging.queue_urls["notification"]
-  sqs_queue_arns             = values(module.messaging.queue_arns)
-  s3_bucket_name             = module.storage.bucket_id
-  s3_bucket_arn              = module.storage.bucket_arn
-  ses_domain                 = var.ses_domain
-  ses_identity_arn           = module.email.identity_arn
-  auth_secrets               = var.auth_secrets
-  core_secrets               = var.core_secrets
-  payment_secrets            = var.payment_secrets
-  notification_secrets       = var.notification_secrets
-  officer_secrets            = var.officer_secrets
-  admin_secrets              = var.admin_secrets
-  queue_secrets              = var.queue_secrets
-  auth_extra_environment     = var.auth_extra_environment
-  core_extra_environment     = var.core_extra_environment
-  payment_extra_environment  = var.payment_extra_environment
-  officer_extra_environment  = var.officer_extra_environment
-  admin_extra_environment    = var.admin_extra_environment
-  queue_extra_environment    = merge(local.queue_environment, var.queue_extra_environment)
+  sqs_queue_urls = {
+    notification = module.messaging.queue_urls["notification"]
+    otp          = module.messaging.queue_urls["otp"]
+    empty_slot   = module.messaging.queue_urls["empty_slot"]
+  }
+  sqs_queue_arns            = values(module.messaging.queue_arns)
+  s3_bucket_name            = module.storage.bucket_id
+  s3_bucket_arn             = module.storage.bucket_arn
+  ses_domain                = var.ses_domain
+  ses_identity_arn          = module.email.identity_arn
+  auth_secrets              = var.auth_secrets
+  core_secrets              = var.core_secrets
+  payment_secrets           = var.payment_secrets
+  notification_secrets      = var.notification_secrets
+  officer_secrets           = var.officer_secrets
+  admin_secrets             = var.admin_secrets
+  queue_secrets             = var.queue_secrets
+  auth_extra_environment    = var.auth_extra_environment
+  core_extra_environment    = var.core_extra_environment
+  payment_extra_environment = var.payment_extra_environment
+  officer_extra_environment = var.officer_extra_environment
+  admin_extra_environment   = var.admin_extra_environment
+  queue_extra_environment   = merge(local.queue_environment, var.queue_extra_environment)
 }
 
 module "cost_schedule" {

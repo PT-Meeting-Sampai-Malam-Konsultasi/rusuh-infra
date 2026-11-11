@@ -146,6 +146,36 @@ variable "auth_memory" {
   default     = 1024
 }
 
+variable "dukcapil_mock_image" {
+  description = "Container image for the Dukcapil NIV mock (rusuh-mock/service-dukcapil)."
+  type        = string
+  default     = "public.ecr.aws/docker/library/busybox:1.36.1"
+}
+
+variable "dukcapil_mock_port" {
+  description = "Container port of the Dukcapil mock (EXPOSE 8080 in its Dockerfile)."
+  type        = number
+  default     = 8080
+}
+
+variable "dukcapil_mock_cpu" {
+  description = "Fargate CPU units for the Dukcapil mock (stateless Express app)."
+  type        = number
+  default     = 256
+}
+
+variable "dukcapil_mock_memory" {
+  description = "Fargate memory (MB) for the Dukcapil mock."
+  type        = number
+  default     = 512
+}
+
+variable "dukcapil_mock_desired_count" {
+  description = "Initial ECS desired count for the Dukcapil mock."
+  type        = number
+  default     = 0
+}
+
 variable "payment_cpu" {
   description = "Fargate CPU units for service-payment."
   type        = number
@@ -375,10 +405,10 @@ variable "valkey_port" {
   type        = number
 }
 
-variable "sqs_notification_queue_url" {
-  description = "Notification SQS queue URL (from the messaging module). Empty = env var omitted."
-  type        = string
-  default     = ""
+variable "sqs_queue_urls" {
+  description = "SQS queue URLs by logical name (notification, otp, empty_slot) from the messaging module. Env vars are injected only for names present here."
+  type        = map(string)
+  default     = {}
 }
 
 variable "sqs_queue_arns" {
