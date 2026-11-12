@@ -66,6 +66,19 @@ variable "ses_domain" {
   default     = "rusuh-tiket.web.id"
 }
 
+variable "cors_origins" {
+  description = "Single source of truth for the browser origins allowed by CORS. Injected as CORS_ORIGINS into all services (auth, core, payment, notification, officer, admin, queue); edit it here to change every service at once. An entry may start with a one-label wildcard (https://*.example.com), but a service only honours that once its CORS code supports it (rusuh-core and rusuh-queue changes); before then the entry matches nothing."
+  type        = list(string)
+  default = [
+    "https://rusuh-tiket.web.id",
+    "https://www.rusuh-tiket.web.id",
+    "https://staging.rusuh-tiket.web.id",
+    "https://*.rusuh-web-staging.pages.dev",
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ]
+}
+
 variable "s3_bucket_name" {
   description = "S3 bucket name for e-ticket PDFs. Must be globally unique and start with msmk-."
   type        = string

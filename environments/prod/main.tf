@@ -124,16 +124,17 @@ module "compute" {
   queue_port          = var.queue_port
 
   certificate_arn = var.certificate_arn
+  cors_origins    = var.cors_origins
 
-  core_desired_count         = var.core_desired_count
-  queue_desired_count        = var.queue_desired_count
-  autoscaling_min_capacity   = var.autoscaling_min_capacity
+  core_desired_count          = var.core_desired_count
+  queue_desired_count         = var.queue_desired_count
+  autoscaling_min_capacity    = var.autoscaling_min_capacity
   dukcapil_mock_desired_count = var.dukcapil_mock_desired_count
-  auth_desired_count         = var.auth_desired_count
-  payment_desired_count      = var.payment_desired_count
-  notification_desired_count = var.notification_desired_count
-  officer_desired_count      = var.officer_desired_count
-  admin_desired_count        = var.admin_desired_count
+  auth_desired_count          = var.auth_desired_count
+  payment_desired_count       = var.payment_desired_count
+  notification_desired_count  = var.notification_desired_count
+  officer_desired_count       = var.officer_desired_count
+  admin_desired_count         = var.admin_desired_count
 
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id

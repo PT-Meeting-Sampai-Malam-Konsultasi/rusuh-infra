@@ -1330,9 +1330,17 @@ locals {
     : "redis://${var.valkey_host}:${var.valkey_port}"
   )
 
-  node_environment = {
-    VALKEY_URL = local.valkey_url
-  }
+  # One CORS allowlist for every service (Node and Go read the same
+  # CORS_ORIGINS name). A per-service *_extra_environment entry still wins
+  # because it is merged after these values.
+  cors_environment = length(var.cors_origins) > 0 ? {
+    CORS_ORIGINS = join(",", var.cors_origins)
+  } : {}
+
+  node_environment = merge(
+    { VALKEY_URL = local.valkey_url },
+    local.cors_environment,
+  )
 
   node_connection_secrets = {
     DATABASE_URL = var.database_url_secret_arn
@@ -1398,6 +1406,7 @@ locals {
 
   queue_environment = merge(
     local.queue_valkey_environment,
+    local.cors_environment,
     # ADOT sidecar (same task, localhost): queue exports OTLP to it.
     { OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317" },
     var.queue_extra_environment,
