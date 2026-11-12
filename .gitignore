@@ -31,3 +31,11 @@ terraform.rc
 # root module's lock matters), so standalone validation inside a module
 # dir must not pollute commits.
 modules/*/.terraform.lock.hcl
+
+# Local tool and operator artifacts — never committed
+.claude/
+graphify-out/
+# Saved plan files named exactly "tfplan" (the *.tfplan pattern misses them)
+tfplan
+# Backend config holds the state bucket and account details (README: Backend state)
+backend-*.hcl
