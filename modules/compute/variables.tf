@@ -555,8 +555,8 @@ variable "cors_origins" {
   default     = []
 
   validation {
-    condition     = alltrue([for o in var.cors_origins : can(regex("^https?://[^/\\s]+$", o))])
-    error_message = "Each cors_origins entry must be an origin: http(s)://host[:port], with no path and no trailing slash."
+    condition     = alltrue([for o in var.cors_origins : can(regex("^https?://(\\*\\.)?[^/\\s*]+$", o))])
+    error_message = "Each cors_origins entry must be an origin: http(s)://host[:port], with no path and no trailing slash. A wildcard is allowed only as the whole first host label (https://*.example.com); the services match it against exactly one label."
   }
 }
 
