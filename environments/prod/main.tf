@@ -159,6 +159,8 @@ module "compute" {
   s3_bucket_arn             = module.storage.bucket_arn
   ses_domain                = var.ses_domain
   ses_identity_arn          = module.email.identity_arn
+
+  ses_extra_sender_identity_arns = var.ses_extra_sender_identity_arns
   auth_secrets              = var.auth_secrets
   core_secrets              = var.core_secrets
   payment_secrets           = var.payment_secrets
@@ -169,6 +171,8 @@ module "compute" {
   auth_extra_environment    = var.auth_extra_environment
   core_extra_environment    = var.core_extra_environment
   payment_extra_environment = var.payment_extra_environment
+
+  notification_extra_environment = var.notification_extra_environment
   officer_extra_environment = var.officer_extra_environment
   admin_extra_environment   = var.admin_extra_environment
   queue_extra_environment   = var.queue_extra_environment

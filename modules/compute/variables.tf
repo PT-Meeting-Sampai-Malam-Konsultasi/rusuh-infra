@@ -543,6 +543,12 @@ variable "container_insights_enabled" {
   default     = true
 }
 
+variable "ses_extra_sender_identity_arns" {
+  description = "Additional SES identity ARNs the notification task may send from or to. SES matches IAM resources against the From address identity, and in the sandbox against each recipient identity too, so the domain ARN alone is not enough."
+  type        = list(string)
+  default     = []
+}
+
 variable "service_connect_namespace" {
   description = "Cloud Map HTTP namespace for ECS Service Connect (private service-to-service calls, e.g. core.msmk.local)."
   type        = string
