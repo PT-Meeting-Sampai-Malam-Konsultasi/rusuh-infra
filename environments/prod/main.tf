@@ -88,6 +88,7 @@ module "data" {
   master_user_secret_kms_key_id     = var.master_user_secret_kms_key_id
   valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
   valkey_auth_token                 = var.valkey_auth_token
+  alarm_actions                     = [module.observability.alarm_topic_arn]
 }
 
 module "compute" {
@@ -202,6 +203,9 @@ module "observability" {
   queue_service_name = module.compute.queue_service_name
   dlq_queue_arns     = module.messaging.dlq_arns
   alarm_email        = var.alarm_email
+
+  queue_log_group_name          = module.compute.queue_log_group_name
+  queue_target_group_arn_suffix = module.compute.queue_target_group_arn_suffix
   # CloudTrail stays off: the account baseline trail (soldev-lz-trail,
   # multi-region) already covers audit. Enable only if this environment
   # needs its own trail in addition to the baseline.

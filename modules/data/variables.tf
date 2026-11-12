@@ -102,3 +102,9 @@ variable "valkey_auth_token" {
   sensitive   = true
   default     = null
 }
+
+variable "alarm_actions" {
+  description = "SNS topic ARNs the Valkey alarms notify (the observability module's alarm topic). Empty = no notification."
+  type        = list(string)
+  default     = []
+}

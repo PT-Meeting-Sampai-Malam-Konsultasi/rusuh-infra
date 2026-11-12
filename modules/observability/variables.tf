@@ -74,3 +74,19 @@ variable "dashboard_name" {
   type        = string
   default     = ""
 }
+
+variable "queue_log_group_name" {
+  description = "The queue's application log group (from the compute module); log metric filters read its JSON lines."
+  type        = string
+}
+
+variable "queue_target_group_arn_suffix" {
+  description = "ARN suffix of the queue's ALB target group (from the compute module), the TargetGroup dimension."
+  type        = string
+}
+
+variable "queue_alarm_5xx_threshold" {
+  description = "Queue target 5xx count per 5 minutes above which the queue 5xx alarm fires."
+  type        = number
+  default     = 5
+}
