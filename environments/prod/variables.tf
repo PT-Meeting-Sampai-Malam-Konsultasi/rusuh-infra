@@ -66,6 +66,12 @@ variable "ses_domain" {
   default     = "rusuh-tiket.web.id"
 }
 
+variable "ses_extra_sender_identity_arns" {
+  description = "Additional SES identity ARNs the notification service may send from or to (the noreply@ address, and in the sandbox every verified test sender and recipient). Set in the local tfvars."
+  type        = list(string)
+  default     = []
+}
+
 variable "cors_origins" {
   description = "Single source of truth for the browser origins allowed by CORS. Injected as CORS_ORIGINS into all services (auth, core, payment, notification, officer, admin, queue); edit it here to change every service at once. An entry may start with a one-label wildcard (https://*.example.com), but a service only honours that once its CORS code supports it (rusuh-core and rusuh-queue changes); before then the entry matches nothing."
   type        = list(string)
@@ -384,6 +390,12 @@ variable "core_extra_environment" {
 
 variable "payment_extra_environment" {
   description = "Extra env vars for service-payment (merged over the standard ones)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "notification_extra_environment" {
+  description = "Extra env vars for service-notification (merged over the standard ones)."
   type        = map(string)
   default     = {}
 }

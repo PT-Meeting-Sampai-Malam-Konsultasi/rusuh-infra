@@ -1293,9 +1293,15 @@ resource "aws_iam_role_policy" "task" {
         Resource = ["${var.s3_bucket_arn}/*"]
       }] : [],
       var.ses_identity_arn != "" && each.key == "notification" ? [{
-        Effect   = "Allow"
-        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-        Resource = [var.ses_identity_arn]
+        Effect = "Allow"
+        Action = ["ses:SendEmail", "ses:SendRawEmail"]
+        # SES authorizes against the identity that matches the From address
+        # (and, in the sandbox, the recipient), not only the domain
+        # identity. Extra sender and recipient identities come from tfvars.
+        Resource = distinct(concat(
+          [var.ses_identity_arn],
+          var.ses_extra_sender_identity_arns,
+        ))
       }] : [],
     )
   })
