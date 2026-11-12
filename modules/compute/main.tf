@@ -1416,7 +1416,15 @@ locals {
   queue_environment = merge(
     local.queue_valkey_environment,
     # ADOT sidecar (same task, localhost): queue exports OTLP to it.
-    { OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317" },
+    {
+      OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
+      OTEL_EXPORTER_TYPE          = "otlp"
+      OTEL_ENDPOINT               = "localhost:4318"
+      OTEL_LOGS_EXPORTER          = "none"
+      OTEL_TRACES_SAMPLER         = "parentbased_traceidratio"
+      OTEL_TRACES_SAMPLER_ARG     = "0.01"
+      LOG_FORMAT                  = "json"
+    },
     var.queue_extra_environment,
   )
 }
