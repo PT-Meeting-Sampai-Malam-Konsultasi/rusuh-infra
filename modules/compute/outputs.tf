@@ -39,6 +39,10 @@ output "queue_target_group_arn" {
   value = aws_lb_target_group.queue.arn
 }
 
+output "queue_target_group_arn_suffix" {
+  value = aws_lb_target_group.queue.arn_suffix
+}
+
 output "auth_target_group_arn" {
   value = aws_lb_target_group.auth.arn
 }
@@ -116,6 +120,10 @@ output "core_log_group_name" {
 
 output "queue_log_group_name" {
   value = aws_cloudwatch_log_group.queue.name
+}
+
+output "queue_metrics_log_group_name" {
+  value = aws_cloudwatch_log_group.queue_metrics.name
 }
 
 output "auth_log_group_name" {

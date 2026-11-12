@@ -88,6 +88,7 @@ module "data" {
   master_user_secret_kms_key_id     = var.master_user_secret_kms_key_id
   valkey_transit_encryption_enabled = var.valkey_transit_encryption_enabled
   valkey_auth_token                 = var.valkey_auth_token
+  alarm_actions                     = [module.observability.alarm_topic_arn]
 }
 
 module "compute" {
@@ -125,15 +126,15 @@ module "compute" {
 
   certificate_arn = var.certificate_arn
 
-  core_desired_count         = var.core_desired_count
-  queue_desired_count        = var.queue_desired_count
-  autoscaling_min_capacity   = var.autoscaling_min_capacity
+  core_desired_count          = var.core_desired_count
+  queue_desired_count         = var.queue_desired_count
+  autoscaling_min_capacity    = var.autoscaling_min_capacity
   dukcapil_mock_desired_count = var.dukcapil_mock_desired_count
-  auth_desired_count         = var.auth_desired_count
-  payment_desired_count      = var.payment_desired_count
-  notification_desired_count = var.notification_desired_count
-  officer_desired_count      = var.officer_desired_count
-  admin_desired_count        = var.admin_desired_count
+  auth_desired_count          = var.auth_desired_count
+  payment_desired_count       = var.payment_desired_count
+  notification_desired_count  = var.notification_desired_count
+  officer_desired_count       = var.officer_desired_count
+  admin_desired_count         = var.admin_desired_count
 
   db_security_group_id     = module.data.db_security_group_id
   valkey_security_group_id = module.data.valkey_security_group_id
@@ -197,6 +198,9 @@ module "observability" {
   queue_service_name = module.compute.queue_service_name
   dlq_queue_arns     = module.messaging.dlq_arns
   alarm_email        = var.alarm_email
+
+  queue_log_group_name          = module.compute.queue_log_group_name
+  queue_target_group_arn_suffix = module.compute.queue_target_group_arn_suffix
   # CloudTrail stays off: the account baseline trail (soldev-lz-trail,
   # multi-region) already covers audit. Enable only if this environment
   # needs its own trail in addition to the baseline.

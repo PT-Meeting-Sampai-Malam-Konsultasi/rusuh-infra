@@ -566,3 +566,9 @@ variable "autoscaling_cpu_target" {
   type        = number
   default     = 70
 }
+
+variable "queue_metrics_log_group_name" {
+  description = "Log group the queue's ADOT sidecar writes EMF metrics to (the awsemf default /metrics/<service.name>)."
+  type        = string
+  default     = "/metrics/rusuh-queue"
+}

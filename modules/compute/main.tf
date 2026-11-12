@@ -29,6 +29,18 @@ resource "aws_cloudwatch_log_group" "queue" {
   }
 }
 
+# The ADOT sidecar's default awsemf exporter writes the queue's OTLP metrics as
+# EMF to /metrics/<service.name>; CloudWatch turns them into metrics. Managed
+# here so it has a retention and the task role can write to it.
+resource "aws_cloudwatch_log_group" "queue_metrics" {
+  name              = var.queue_metrics_log_group_name
+  retention_in_days = var.log_retention_in_days
+
+  tags = {
+    Name = "${var.project}-${var.environment}-queue-metrics"
+  }
+}
+
 resource "aws_cloudwatch_log_group" "auth" {
   name              = "/ecs/${var.project}-${var.environment}-auth"
   retention_in_days = var.log_retention_in_days
@@ -1296,6 +1308,11 @@ resource "aws_iam_role_policy" "task" {
         Effect   = "Allow"
         Action   = ["ses:SendEmail", "ses:SendRawEmail"]
         Resource = [var.ses_identity_arn]
+      }] : [],
+      each.key == "queue" ? [{
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = ["${aws_cloudwatch_log_group.queue_metrics.arn}:*"]
       }] : [],
     )
   })
