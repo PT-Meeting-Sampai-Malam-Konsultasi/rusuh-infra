@@ -66,6 +66,17 @@ variable "ses_domain" {
   default     = "rusuh-tiket.web.id"
 }
 
+variable "cors_origins" {
+  description = "Single source of truth for the browser origins allowed by CORS. Injected as CORS_ORIGINS into all services (auth, core, payment, notification, officer, admin, queue). The default matches the allowlist the Node services shipped with, so enabling this variable changes no behaviour; edit it here to change every service at once."
+  type        = list(string)
+  default = [
+    "https://rusuh-tiket.web.id",
+    "https://www.rusuh-tiket.web.id",
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ]
+}
+
 variable "s3_bucket_name" {
   description = "S3 bucket name for e-ticket PDFs. Must be globally unique and start with msmk-."
   type        = string

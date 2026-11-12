@@ -549,6 +549,17 @@ variable "service_connect_namespace" {
   default     = "msmk.local"
 }
 
+variable "cors_origins" {
+  description = "Browser origins allowed to call the APIs. Injected as CORS_ORIGINS (comma-separated) into every service: the six Node services and the Go queue read the same variable. An empty list injects nothing, so each service falls back to its own built-in default."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for o in var.cors_origins : can(regex("^https?://[^/\\s]+$", o))])
+    error_message = "Each cors_origins entry must be an origin: http(s)://host[:port], with no path and no trailing slash."
+  }
+}
+
 variable "autoscaling_min_capacity" {
   description = "Autoscaling minimum task count per ALB-backed service."
   type        = number
