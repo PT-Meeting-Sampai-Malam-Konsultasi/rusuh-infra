@@ -148,7 +148,7 @@ The tag check in `backend-cd.yml` stops honest mistakes, not a determined collab
 
 1. In each backend repo, the `production` environment's deployment policy allows only tags matching `v*`.
 2. A tag ruleset limits who can create `v*` tags.
-3. The IAM role's OIDC trust policy is pinned to `token.actions.githubusercontent.com:sub` = the rusuh-core and rusuh-queue repos in the `production` environment (`repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-core:environment:production`, `repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-queue:environment:production`), and `job_workflow_ref` to `PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@refs/tags/v1`.
+3. The IAM role's OIDC trust policy is pinned to `token.actions.githubusercontent.com:sub` = the rusuh-core and rusuh-queue repos in the `production` environment (`repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-core:environment:production`, `repo:PT-Meeting-Sampai-Malam-Konsultasi/rusuh-queue:environment:production`). The org uses GitHub's immutable subjects, so the token actually carries `repo:PT-Meeting-Sampai-Malam-Konsultasi@343369600/<repo>@<repo id>:environment:production` (core 1430487010, queue 1430486758), and the trust lists both forms. A new service repo needs its own immutable subject (`gh api repos/<org>/<repo>/actions/oidc/customization/sub` shows the prefix), and `job_workflow_ref` to `PT-Meeting-Sampai-Malam-Konsultasi/rusuh-infra/.github/workflows/backend-cd.yml@refs/tags/v1`.
 
 Fork PRs get no `id-token` and a read-only token, so they cannot push images or reach AWS.
 

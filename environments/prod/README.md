@@ -27,6 +27,16 @@ its ARN is exposed as the `db_master_user_secret_arn` Terraform output.
 (Ports for auth/payment/notification/officer/admin default to
 8081/8083/8084/8085/8086.)
 
+## Service config ownership
+
+- Non-secret env: committed in `service-environment.tf` (reviewed PR,
+  then `terraform apply`).
+- Secrets: Secrets Manager ARNs in `*_secrets`.
+- Image: each service repo's CD (`backend-cd.yml@v1`), which copies the
+  latest task definition revision and swaps only the image.
+- Never edit a task definition by hand in the console or CLI; the next
+  apply registers a revision without the change and CD deploys it.
+
 ## Two-step flows (written explicitly, not assumed)
 
 - Secrets: apply first (secrets are empty shells) → fill values via

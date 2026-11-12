@@ -413,7 +413,7 @@ variable "admin_extra_environment" {
 }
 
 variable "queue_extra_environment" {
-  description = "Extra env vars for service-queue (merged over the standard ones)."
+  description = "Overrides for service-queue env, merged over local.queue_environment (service-environment.tf)."
   type        = map(string)
   default     = {}
 }
