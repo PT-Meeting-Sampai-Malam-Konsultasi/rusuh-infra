@@ -43,26 +43,6 @@ output "secret_arns" {
   value = module.secrets.secret_arns
 }
 
-output "certificate_arn" {
-  value = module.dns.certificate_arn
-}
-
-output "certificate_validation_options" {
-  value = module.dns.domain_validation_options
-}
-
-output "cloudfront_domain_name" {
-  value = module.edge.cloudfront_domain_name
-}
-
-output "cloudfront_distribution_id" {
-  value = module.edge.cloudfront_distribution_id
-}
-
-output "waf_acl_arn" {
-  value = module.edge.waf_acl_arn
-}
-
 output "cost_scheduler_role_arn" {
   description = "IAM role used by EventBridge Scheduler for cost-control actions."
   value       = module.cost_schedule.scheduler_role_arn

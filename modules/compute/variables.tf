@@ -345,7 +345,7 @@ variable "admin_path_patterns" {
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate ARN for the HTTPS listener. Empty = no HTTPS listener (HTTP only until the dns module certificate is validated)."
+  description = "ACM certificate ARN for the HTTPS listener. Empty = no HTTPS listener (HTTP only). Cloudflare terminates TLS in front of the ALB."
   type        = string
   default     = ""
 }

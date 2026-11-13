@@ -659,8 +659,8 @@ resource "aws_lb_listener_rule" "admin_http" {
 }
 
 # HTTPS listener only exists once a certificate ARN is supplied
-# (from the dns module, after ACM validation). Until then the demo
-# serves HTTP only — see README.md.
+# (supplied by the operator; Terraform no longer creates the certificate).
+# Until then the ALB serves HTTP only behind Cloudflare — see README.md.
 resource "aws_lb_listener" "https" {
   count = var.certificate_arn != "" ? 1 : 0
 

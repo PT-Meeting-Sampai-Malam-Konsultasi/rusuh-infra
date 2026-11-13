@@ -103,12 +103,6 @@ variable "secrets" {
   default = {}
 }
 
-variable "api_domain" {
-  description = "API subdomain for the ACM certificate."
-  type        = string
-  default     = "api.rusuh-tiket.web.id"
-}
-
 variable "certificate_arn" {
   description = "ACM certificate ARN for the compute HTTPS listener. Empty = HTTP only until the dns certificate is validated."
   type        = string
@@ -286,27 +280,9 @@ variable "cost_schedule_enabled" {
   default     = false
 }
 
-variable "acm_certificate_arn_us_east_1" {
-  description = "ACM certificate ARN for the API domain in us-east-1 (CloudFront custom domain). Empty = no custom domain on CloudFront yet."
-  type        = string
-  default     = ""
-}
-
 variable "alarm_email" {
   description = "Email address that receives CloudWatch alarm notifications via SNS. Required (no default): enterprise readiness needs a mandatory alert endpoint. The recipient must confirm the SNS subscription after apply."
   type        = string
-}
-
-variable "waf_rate_limit" {
-  description = "WAF rate-based rule: max requests per 5 minutes per IP."
-  type        = number
-  default     = 10000
-}
-
-variable "edge_price_class" {
-  description = "CloudFront price class (PriceClass_200 includes Asia)."
-  type        = string
-  default     = "PriceClass_200"
 }
 
 variable "db_username" {

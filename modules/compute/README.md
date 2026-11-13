@@ -15,10 +15,10 @@ ECS cluster (Fargate) + ALB for the seven rusuh services:
 Resources:
 
 - `aws_ecs_cluster` (Container Insights on for the evaluation).
-- `aws_lb` (public, behind CloudFront — see the edge module),
+- `aws_lb` (public, behind Cloudflare),
   one target group per ALB-backed service, HTTP listener (always) +
-  HTTPS listener (only when `certificate_arn` is set, from the `dns`
-  module after the certificate is validated).
+  HTTPS listener (only when `certificate_arn` is set; the certificate is
+  no longer created by this repo).
 - Routing (ADR-0017 `/v1/` scheme): default → core; one listener
   rule per service (HTTP + HTTPS, priority 100–150). Internal paths
   are blocked from the public listeners with a fixed-response 404
