@@ -13,5 +13,8 @@ locals {
     CORE_ACCESS_REQUIRE_OTP = "false"
     # Core holds the admission for the payment step after the order window.
     CORE_PAYMENT_WINDOW = "10m"
+    # Device registration skips Turnstile and attestation; rate limits still
+    # apply. Back to "enforce" once a real TURNSTILE_SECRET is in place.
+    DEVICE_VERIFICATION = "off"
   }
 }
