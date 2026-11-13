@@ -310,6 +310,20 @@ resource "aws_security_group_rule" "core_to_payment" {
   description              = "core to payment: start a payment"
 }
 
+# core to the Dukcapil mock: NIK verification (POST /api/v1/verifications).
+# The mock is outside service_security_group_ids, so nothing else opens this
+# port; without the rule core's call hangs until its 2 s timeout.
+resource "aws_security_group_rule" "core_to_dukcapil_mock" {
+  type              = "ingress"
+  security_group_id = aws_security_group.dukcapil_mock.id
+
+  from_port                = var.dukcapil_mock_port
+  to_port                  = var.dukcapil_mock_port
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.core.id
+  description              = "core to dukcapil mock: NIK verification"
+}
+
 # Ingress to the data layer, owned here (not in the data module). The data
 # module creates the DB/Valkey security groups but no ingress rules, so it
 # never needs the ECS security groups as an input — the dependency is
