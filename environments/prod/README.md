@@ -5,7 +5,7 @@ the modules in `../../modules/` into one applyable stack.
 
 Status on this branch: all modules are wired (see `main.tf`):
 `network`, `data`, `compute`, `messaging`, `email`, `storage`,
-`secrets`, `dns`, `edge`, `observability`.
+`secrets`, `observability`.
 
 ## Usage
 
@@ -52,14 +52,9 @@ its ARN is exposed as the `db_master_user_secret_arn` Terraform output.
   `certificate_arn` and apply again to enable the HTTPS 443 listener.
   Until then the stack runs on HTTP only (and the HTTP listener
   forwards to core instead of redirecting to HTTPS).
-- CloudFront custom domain: the edge module needs an ACM certificate
-  for `api.rusuh-tiket.web.id` **in us-east-1** (separate from the
-  ap-southeast-3 certificate in the dns module). Until
-  `acm_certificate_arn_us_east_1` is set, the distribution has no
-  custom domain — use the `cloudfront_domain_name` output. Once the
-  us-east-1 certificate is validated, set the variable, re-apply,
-  and point the `api` CNAME in Cloudflare at the CloudFront domain
-  (see the edge module README).
+- Public entry point: Cloudflare proxies `api.rusuh-tiket.web.id` to the
+  ALB over HTTP. CloudFront, AWS WAF and the ACM certificates were
+  removed (the stack no longer has an `edge` or `dns` module).
 - SES production access is a manual quota request (not Terraform) —
   arrange it before the evaluation.
 

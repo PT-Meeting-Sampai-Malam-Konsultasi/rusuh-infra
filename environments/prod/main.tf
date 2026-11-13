@@ -47,36 +47,6 @@ module "secrets" {
   })
 }
 
-module "dns" {
-  source = "../../modules/dns"
-
-  project     = var.project
-  environment = var.environment
-  api_domain  = var.api_domain
-}
-
-module "edge" {
-  source = "../../modules/edge"
-
-  providers = {
-    aws.us_east_1 = aws.us_east_1
-  }
-
-  project                       = var.project
-  environment                   = var.environment
-  alb_dns_name                  = module.compute.alb_dns_name
-  api_domain                    = var.api_domain
-  acm_certificate_arn_us_east_1 = var.acm_certificate_arn_us_east_1
-  # Derived from the ALB certificate, not a free variable: the ALB only
-  # has an HTTPS listener when certificate_arn is set, so CloudFront must
-  # use http-only until then (https-only with no listener = 502). When a
-  # certificate is supplied the ALB gains the HTTPS listener and the
-  # origin switches to https-only automatically.
-  origin_protocol_policy = var.certificate_arn != "" ? "https-only" : "http-only"
-  waf_rate_limit         = var.waf_rate_limit
-  price_class            = var.edge_price_class
-}
-
 module "data" {
   source = "../../modules/data"
 
@@ -155,28 +125,28 @@ module "compute" {
     otp          = module.messaging.queue_urls["otp"]
     empty_slot   = module.messaging.queue_urls["empty_slot"]
   }
-  sqs_queue_arns            = values(module.messaging.queue_arns)
-  s3_bucket_name            = module.storage.bucket_id
-  s3_bucket_arn             = module.storage.bucket_arn
-  ses_domain                = var.ses_domain
-  ses_identity_arn          = module.email.identity_arn
+  sqs_queue_arns   = values(module.messaging.queue_arns)
+  s3_bucket_name   = module.storage.bucket_id
+  s3_bucket_arn    = module.storage.bucket_arn
+  ses_domain       = var.ses_domain
+  ses_identity_arn = module.email.identity_arn
 
   ses_extra_sender_identity_arns = var.ses_extra_sender_identity_arns
-  auth_secrets              = var.auth_secrets
-  core_secrets              = var.core_secrets
-  payment_secrets           = var.payment_secrets
-  notification_secrets      = var.notification_secrets
-  officer_secrets           = var.officer_secrets
-  admin_secrets             = var.admin_secrets
-  queue_secrets             = var.queue_secrets
-  auth_extra_environment    = var.auth_extra_environment
-  core_extra_environment    = var.core_extra_environment
-  payment_extra_environment = var.payment_extra_environment
+  auth_secrets                   = var.auth_secrets
+  core_secrets                   = var.core_secrets
+  payment_secrets                = var.payment_secrets
+  notification_secrets           = var.notification_secrets
+  officer_secrets                = var.officer_secrets
+  admin_secrets                  = var.admin_secrets
+  queue_secrets                  = var.queue_secrets
+  auth_extra_environment         = var.auth_extra_environment
+  core_extra_environment         = var.core_extra_environment
+  payment_extra_environment      = var.payment_extra_environment
 
   notification_extra_environment = var.notification_extra_environment
-  officer_extra_environment = var.officer_extra_environment
-  admin_extra_environment   = var.admin_extra_environment
-  queue_extra_environment   = merge(local.queue_environment, var.queue_extra_environment)
+  officer_extra_environment      = var.officer_extra_environment
+  admin_extra_environment        = var.admin_extra_environment
+  queue_extra_environment        = merge(local.queue_environment, var.queue_extra_environment)
 }
 
 module "cost_schedule" {

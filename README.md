@@ -11,12 +11,13 @@ documentation repo. Terraform `>= 1.5`, AWS provider `~> 5.0`.
 ## Architecture (summary)
 
 - Web: Cloudflare Pages (FE team, Wrangler).
-- API: CloudFront → ALB → ECS (seven services: auth, core, payment,
-  notification, officer, admin from rusuh-core, plus queue from
-  rusuh-queue). CloudFront caches `/v1/queue/{evt}/frontier` for 1 s
-  (ADR-0015) and puts a WAF in front of the API; the rest is
-  pass-through. The `api` DNS record points at the CloudFront
-  domain, not directly at the ALB.
+- API: Cloudflare (proxy, TLS, WAF and rate limiting) → ALB → ECS
+  (seven services: auth, core, payment, notification, officer, admin
+  from rusuh-core, plus queue from rusuh-queue). The `api` record is
+  a proxied Cloudflare CNAME to the ALB. There is no CloudFront or
+  AWS WAF in this stack: the edge was removed because Cloudflare is
+  the public entry point. The 1 s cache for `/v1/queue/{evt}/frontier`
+  (ADR-0015) is therefore a Cloudflare cache rule, not an AWS setting.
 - Data: RDS PostgreSQL + ElastiCache Valkey (primary + replica with
   automatic failover; one cluster shared by queue + core, namespaces
   `q:{evt}:*`, `core:*`, `stream:booking`, `rl:*`).
@@ -28,10 +29,11 @@ documentation repo. Terraform `>= 1.5`, AWS provider `~> 5.0`.
   JWT keys). No secrets in this repo.
 - Observability: CloudWatch + X-Ray (OTel deferred — Q40; the queue
   service exports OTLP to an ADOT sidecar, core logs to CloudWatch).
-- Domains: `rusuh-tiket.web.id` + `api.rusuh-tiket.web.id` (SSL via ACM —
-  not yet present, part of the `dns` module; the CloudFront custom
-  domain needs a separate certificate in us-east-1, see the edge
-  module README).
+- Domains: `rusuh-tiket.web.id` + `api.rusuh-tiket.web.id`, DNS and TLS
+  at Cloudflare. The ALB listens on HTTP :80 only; it is reachable from
+  Cloudflare, not meant to be called directly. HTTPS to the origin would
+  need an ACM certificate and `certificate_arn` (the compute module still
+  supports it).
 
 ## Production hardening
 
@@ -68,8 +70,9 @@ rotation needs an application/runtime integration; Valkey in-transit encryption 
 `valkey_transit_encryption_enabled = true` and `valkey_auth_token` are
 set, and rusuh-core needs no code change — ioredis enables TLS on
 `rediss://` automatically — but rusuh-queue/Go must enable TLS in its
-client first, a team follow-up); HTTPS end-to-end requires the ACM
-certificate to be validated and `certificate_arn` set at apply time.
+client first, a team follow-up); HTTPS from Cloudflare to the ALB would
+need an ACM certificate and `certificate_arn` set at apply time (the ACM
+certificate is no longer created by Terraform).
 Connection URLs: the Node services get `DATABASE_URL` from a required
 Secrets Manager ARN plus `VALKEY_URL`; the Go queue gets `VALKEY_ADDR`
 (host:port) + `VALKEY_PASSWORD` and deliberately no `DATABASE_URL`.
@@ -91,8 +94,8 @@ dependency is one-way (compute → data) and no cycle can form.
 | S3 (e-ticket) | Module `storage` — implemented |
 | Secrets Manager | Module `secrets` — implemented (shells only, no values) |
 | ECS + ALB | Module `compute` — implemented (7 services) |
-| CloudFront + WAF | Module `edge` — implemented (distribution + Web ACL; custom domain needs a us-east-1 ACM certificate, TBD) |
-| Domain + ACM/SSL | Module `dns` — implemented (certificate; manual DNS validation) |
+| Edge (TLS, WAF, rate limit, cache) | Cloudflare (outside Terraform). The former `edge` module (CloudFront + AWS WAF) was removed |
+| Domain + TLS | Cloudflare DNS and TLS (outside Terraform). The former `dns` module (ACM certificate) was removed |
 | CloudWatch (alarms + dashboard) | Module `observability` — implemented |
 
 Target: all infra ready for the 13 November 2026 evaluation. That
@@ -113,8 +116,6 @@ modules/
   email/              # SES
   storage/            # S3
   secrets/            # Secrets Manager
-  dns/                # ACM + DNS records
-  edge/               # CloudFront + WAF in front of the ALB
   observability/      # CloudWatch (+ X-Ray)
 ```
 
@@ -146,9 +147,7 @@ is guessed in the repo.
 
 ## Conventions
 
-- Region: `ap-southeast-3` (Jakarta) for all resources, except
-  CloudFront-scoped resources (WAFv2 Web ACL, ACM for the CloudFront
-  custom domain) — those are `us-east-1` (mandatory).
+- Region: `ap-southeast-3` (Jakarta) for all resources.
 - Naming: `msmk-<env>-<name>`. Mandatory tags: `Project=msmk`,
   `Environment=<env>`, `ManagedBy=terraform`.
 - Secrets never enter the repo, tfvars, or committed state.
