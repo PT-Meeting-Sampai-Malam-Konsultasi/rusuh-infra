@@ -64,9 +64,14 @@ variable "enable_cloudtrail" {
   default     = false
 }
 
-variable "alarm_email" {
-  description = "Email address that receives CloudWatch alarm notifications via SNS. Required: enterprise readiness needs a mandatory alert endpoint. The recipient must confirm the SNS subscription (AWS sends a confirmation email after apply) or no notifications are delivered."
-  type        = string
+variable "alarm_emails" {
+  description = "Email addresses that receive CloudWatch alarm notifications via SNS. At least one address is required. Each recipient must confirm the SNS subscription AWS sends after apply before receiving notifications."
+  type        = set(string)
+
+  validation {
+    condition     = length(var.alarm_emails) > 0
+    error_message = "alarm_emails must contain at least one email address."
+  }
 }
 
 variable "dashboard_name" {

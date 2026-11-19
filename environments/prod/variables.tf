@@ -280,9 +280,14 @@ variable "cost_schedule_enabled" {
   default     = false
 }
 
-variable "alarm_email" {
-  description = "Email address that receives CloudWatch alarm notifications via SNS. Required (no default): enterprise readiness needs a mandatory alert endpoint. The recipient must confirm the SNS subscription after apply."
-  type        = string
+variable "alarm_emails" {
+  description = "Email addresses that receive CloudWatch alarm notifications via SNS. At least one address is required; each recipient must confirm the SNS subscription after apply."
+  type        = set(string)
+
+  validation {
+    condition     = length(var.alarm_emails) > 0
+    error_message = "alarm_emails must contain at least one email address."
+  }
 }
 
 variable "db_username" {

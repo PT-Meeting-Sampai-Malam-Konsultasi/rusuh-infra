@@ -57,7 +57,7 @@ This is a production-ready setup, not an evaluation-only one:
   the account baseline trail `soldev-lz-trail`, multi-region, already
   covers audit; enable `enable_cloudtrail` only if this environment
   needs its own trail). CloudWatch alarms (ALB 5xx, DLQ depth) notify
-  via SNS — `alarm_email` is required, and the recipient must confirm
+  via SNS — `alarm_emails` is required, and each recipient must confirm
   the SNS subscription after apply.
 - **Backup/restore:** see `docs/runbook-backup-restore.md`.
 

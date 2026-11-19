@@ -26,9 +26,9 @@ Resources:
 
 Notes:
 
-- Alarms notify the SNS topic `<prefix>-alarms` (email to
-  `alarm_email`). The recipient must confirm the subscription, or no
-  alarm reaches anyone. The data module's Valkey memory alarm uses the
+- Alarms notify the SNS topic `<prefix>-alarms` (emails in
+  `alarm_emails`). Each recipient must confirm the subscription, or no
+  alarm reaches that recipient. The data module's Valkey memory alarm uses the
   same topic (`alarm_topic_arn` output).
 - Drill: `aws cloudwatch set-alarm-state --alarm-name <name>
   --state-value ALARM --state-reason drill` sends the notification

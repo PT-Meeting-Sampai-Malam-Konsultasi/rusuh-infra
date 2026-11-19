@@ -172,7 +172,7 @@ module "observability" {
   core_service_name  = module.compute.core_service_name
   queue_service_name = module.compute.queue_service_name
   dlq_queue_arns     = module.messaging.dlq_arns
-  alarm_email        = var.alarm_email
+  alarm_emails       = var.alarm_emails
 
   queue_log_group_name          = module.compute.queue_log_group_name
   queue_target_group_arn_suffix = module.compute.queue_target_group_arn_suffix
