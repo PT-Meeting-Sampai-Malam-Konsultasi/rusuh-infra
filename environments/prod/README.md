@@ -16,7 +16,7 @@ Status on this branch: all modules are wired (see `main.tf`):
 
 ## Required variables (no defaults)
 
-`database_url_secret_arn`, `alarm_email`, `auth_image`, `core_image`,
+`database_url_secret_arn`, `alarm_emails`, `auth_image`, `core_image`,
 `payment_image`, `notification_image`, `officer_image`, `admin_image`,
 `queue_image`, `core_port`, `queue_port`, `s3_bucket_name`
 — supply via a tfvars file (gitignored, never committed) or `-var`.

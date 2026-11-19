@@ -62,10 +62,9 @@ locals {
   )
 }
 
-# SNS topic for alarm notifications (Tier 2). Always created: the alert
-# endpoint is mandatory (alarm_email is a required variable). The
-# recipient must confirm the subscription via the email AWS sends after
-# apply, or notifications are not delivered.
+# SNS topic for alarm notifications (Tier 2). Always created: at least one
+# alert endpoint is mandatory. Each recipient must confirm the subscription
+# via the email AWS sends after apply, or notifications are not delivered.
 resource "aws_sns_topic" "alarms" {
   name = "${var.project}-${var.environment}-alarms"
 
@@ -75,9 +74,11 @@ resource "aws_sns_topic" "alarms" {
 }
 
 resource "aws_sns_topic_subscription" "alarms_email" {
+  for_each = var.alarm_emails
+
   topic_arn = aws_sns_topic.alarms.arn
   protocol  = "email"
-  endpoint  = var.alarm_email
+  endpoint  = each.value
 }
 
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
